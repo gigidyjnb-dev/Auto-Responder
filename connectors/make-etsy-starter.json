@@ -1,0 +1,24 @@
+{
+  "name": "Etsy -> Auto-Responder (Starter)",
+  "description": "Use this as a mapping reference for a Make HTTP module.",
+  "trigger": {
+    "source": "Etsy conversation/message event",
+    "fields": ["conversation_id", "buyer_name", "message"]
+  },
+  "action": {
+    "type": "http_make_a_request",
+    "method": "POST",
+    "url": "https://YOUR_DOMAIN/api/integrations/inbound",
+    "headers": [
+      { "name": "Content-Type", "value": "application/json" },
+      { "name": "x-integration-key", "value": "YOUR_INTEGRATION_API_KEY" }
+    ],
+    "body": {
+      "platform": "etsy",
+      "senderId": "{{conversation_id}}",
+      "customerName": "{{buyer_name}}",
+      "question": "{{message}}",
+      "queueOnly": false
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "name": "marketplace-auto-responder",
+  "version": "1.0.0",
+  "description": "Auto responder for Facebook Marketplace style product inquiries",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "setup": "node src/setup.js",
+    "test": "node --test",
+    "db:backup": "node scripts/db-backup.js",
+    "db:restore": "node scripts/db-restore.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express-rate-limit": "^7.5.0",
+    "express": "^4.19.2",
+    "helmet": "^8.0.0",
+    "multer": "^2.0.2",
+    "openai": "^4.67.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4",
+    "supertest": "^7.1.1"
+  }
+}

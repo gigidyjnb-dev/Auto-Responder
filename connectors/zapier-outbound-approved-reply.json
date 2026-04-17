@@ -1,0 +1,22 @@
+{
+  "name": "Outbound Approved Reply Receiver (Zapier Starter)",
+  "description": "Receive approved replies from Auto-Responder and deliver to marketplace tooling.",
+  "trigger": {
+    "source": "Catch Hook",
+    "url": "https://hooks.zapier.com/hooks/catch/XXXX/YYYY"
+  },
+  "expected_payload": {
+    "event": "approved_reply",
+    "itemId": "123",
+    "channel": "ebay",
+    "senderId": "buyer-123",
+    "customerName": "Sam",
+    "question": "Can you ship this by Tuesday?",
+    "answer": "Hi Sam, yes this can ship this week.",
+    "approvedAt": "2026-04-10T08:00:00.000Z"
+  },
+  "next_action": {
+    "type": "platform_send_message",
+    "note": "Map senderId + answer into your platform send-message connector."
+  }
+}

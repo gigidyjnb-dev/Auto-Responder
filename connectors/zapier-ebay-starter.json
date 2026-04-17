@@ -1,0 +1,23 @@
+{
+  "name": "eBay -> Auto-Responder (Starter)",
+  "description": "Use this as a mapping reference for a Zapier webhook action.",
+  "trigger": {
+    "source": "eBay buyer message event",
+    "fields": ["buyer_id", "buyer_name", "message_text"]
+  },
+  "action": {
+    "type": "webhook_post",
+    "url": "https://YOUR_DOMAIN/api/integrations/inbound",
+    "headers": {
+      "Content-Type": "application/json",
+      "x-integration-key": "YOUR_INTEGRATION_API_KEY"
+    },
+    "body": {
+      "platform": "ebay",
+      "senderId": "{{buyer_id}}",
+      "customerName": "{{buyer_name}}",
+      "question": "{{message_text}}",
+      "queueOnly": false
+    }
+  }
+}

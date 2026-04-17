@@ -1,0 +1,29 @@
+{
+  "name": "Generic Marketplace -> Auto-Responder (n8n Starter)",
+  "workflow": [
+    {
+      "node": "Webhook Trigger",
+      "purpose": "Receive inbound buyer message from any upstream source"
+    },
+    {
+      "node": "Set",
+      "purpose": "Map fields to platform, senderId, customerName, question"
+    },
+    {
+      "node": "HTTP Request",
+      "method": "POST",
+      "url": "https://YOUR_DOMAIN/api/integrations/inbound",
+      "headers": {
+        "Content-Type": "application/json",
+        "x-integration-key": "YOUR_INTEGRATION_API_KEY"
+      },
+      "jsonBody": {
+        "platform": "offerup",
+        "senderId": "={{$json.sender_id}}",
+        "customerName": "={{$json.customer_name}}",
+        "question": "={{$json.message}}",
+        "queueOnly": false
+      }
+    }
+  ]
+}
