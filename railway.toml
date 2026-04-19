@@ -3,4 +3,5 @@
 [deploy]
 startCommand = "npm start"
 healthcheckPath = "/health"
-healthcheckTimeout = 100
+# Allow slow cold starts (SQLite init, Node load).
+healthcheckTimeout = 300

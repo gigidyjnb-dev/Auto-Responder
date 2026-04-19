@@ -1,5 +1,57 @@
 require('dotenv').config();
 
+function isProductionLike() {
+  return (
+    process.env.NODE_ENV === 'production' ||
+    Boolean(process.env.RAILWAY_ENVIRONMENT) ||
+    Boolean(process.env.RAILWAY_SERVICE_NAME)
+  );
+}
+
+function assertProductionConfig() {
+  if (!isProductionLike()) {
+    return;
+  }
+
+  const pwd = process.env.ADMIN_PASSWORD;
+  const pwdOk = typeof pwd === 'string' && pwd.trim().length >= 8;
+  const strict =
+    process.env.FAIL_WITHOUT_ADMIN_PASSWORD === '1' ||
+    process.env.FAIL_WITHOUT_ADMIN_PASSWORD === 'true';
+
+  if (!pwdOk) {
+    const msg =
+      '[marketplace-auto-responder] Set ADMIN_PASSWORD (8+ chars) in Railway Variables to lock /admin. ' +
+      'Until then, admin routes are not password-protected.';
+    if (strict) {
+      console.error(msg);
+      process.exit(1);
+    }
+    console.error(`WARNING: ${msg}`);
+  }
+
+  if (!process.env.ADMIN_SESSION_SECRET?.trim() && !process.env.INTEGRATION_API_KEY?.trim()) {
+    console.warn(
+      '[marketplace-auto-responder] Set ADMIN_SESSION_SECRET (recommended) or INTEGRATION_API_KEY ' +
+        'so admin sessions stay valid across server restarts.'
+    );
+  }
+
+  if (!process.env.OPENAI_API_KEY?.trim()) {
+    console.warn(
+      '[marketplace-auto-responder] OPENAI_API_KEY is unset; replies use built-in FAQ/fallback text only.'
+    );
+  }
+
+  if (!process.env.INTEGRATION_API_KEY?.trim()) {
+    console.warn(
+      '[marketplace-auto-responder] INTEGRATION_API_KEY is unset; /api/inbound and /api/integrations/* will reject requests.'
+    );
+  }
+}
+
+assertProductionConfig();
+
 const cors = require('cors');
 const crypto = require('crypto');
 const express = require('express');
