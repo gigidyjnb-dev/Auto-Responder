@@ -2,77 +2,199 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Listing Sync</title>
+  <title>Marketplace Auto-Responder</title>
   <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      width: 350px;
-      padding: 16px;
+      width: 360px;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #f9f9f9;
+      background: #f5f7fa;
+      color: #1a1a1a;
     }
-    h2 { margin: 0 0 12px 0; font-size: 16px; color: #1a1a1a; }
-    .platform-select { width: 100%; padding: 8px; margin-bottom: 12px; }
-    button {
-      width: 100%;
-      padding: 10px;
-      margin: 4px 0;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: 500;
-    }
-    .sync-btn { background: #0066ff; color: white; }
-    .sync-btn:hover { background: #0052cc; }
-    .status {
-      margin-top: 12px;
-      padding: 8px;
-      border-radius: 6px;
-      font-size: 13px;
-      display: none;
-    }
-    .status.success { background: #d4edda; color: #155724; display: block; }
-    .status.error { background: #f8d7da; color: #721c24; display: block; }
-    .status.info { background: #d1ecf1; color: #0c5460; display: block; }
-    .progress-bar {
-      height: 4px;
-      background: #e0e0e0;
-      border-radius: 2px;
-      overflow: hidden;
-      margin: 8px 0;
-    }
-    .progress-fill {
-      height: 100%;
+    .header {
       background: #0066ff;
-      width: 0%;
-      transition: width 0.3s;
+      color: #fff;
+      padding: 14px 16px 0;
     }
-    .listing-count {
+    .header h1 { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
+    .tabs { display: flex; gap: 4px; }
+    .tab {
+      flex: 1;
+      padding: 8px;
+      text-align: center;
       font-size: 12px;
-      color: #666;
-      margin-top: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: 6px 6px 0 0;
+      background: rgba(255,255,255,0.15);
+      color: rgba(255,255,255,0.8);
+      border: none;
     }
+    .tab.active { background: #f5f7fa; color: #0066ff; }
+    .panel { display: none; padding: 16px; }
+    .panel.active { display: block; }
+
+    label { font-size: 12px; font-weight: 600; color: #555; display: block; margin-bottom: 4px; }
+    input[type="text"], select {
+      width: 100%; padding: 8px 10px; border: 1px solid #ddd;
+      border-radius: 6px; font-size: 13px; margin-bottom: 12px;
+      background: #fff;
+    }
+    input[type="text"]:focus, select:focus { outline: none; border-color: #0066ff; }
+
+    .toggle-row {
+      display: flex; align-items: center; justify-content: space-between;
+      background: #fff; border-radius: 8px; padding: 10px 12px;
+      margin-bottom: 10px; border: 1px solid #eee;
+    }
+    .toggle-label { font-size: 13px; font-weight: 600; }
+    .toggle-sub { font-size: 11px; color: #888; margin-top: 2px; }
+    .switch { position: relative; display: inline-block; width: 40px; height: 22px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; cursor: pointer; inset: 0;
+      background: #ccc; border-radius: 22px; transition: .3s;
+    }
+    .slider:before {
+      content: ''; position: absolute;
+      width: 16px; height: 16px; left: 3px; bottom: 3px;
+      background: #fff; border-radius: 50%; transition: .3s;
+    }
+    input:checked + .slider { background: #0066ff; }
+    input:checked + .slider:before { transform: translateX(18px); }
+
+    button.primary {
+      width: 100%; padding: 10px; border: none; border-radius: 8px;
+      background: #0066ff; color: #fff; font-size: 14px; font-weight: 600;
+      cursor: pointer; margin-bottom: 8px;
+    }
+    button.primary:hover { background: #0052cc; }
+    button.primary:disabled { background: #99bcff; cursor: not-allowed; }
+    button.secondary {
+      width: 100%; padding: 9px; border: 1px solid #ddd; border-radius: 8px;
+      background: #fff; color: #333; font-size: 13px; font-weight: 500;
+      cursor: pointer; margin-bottom: 8px;
+    }
+    button.secondary:hover { background: #f0f0f0; }
+
+    .status {
+      padding: 8px 10px; border-radius: 6px; font-size: 12px; margin-top: 6px;
+    }
+    .status.success { background: #d4edda; color: #155724; }
+    .status.error   { background: #f8d7da; color: #721c24; }
+    .status.info    { background: #d1ecf1; color: #0c5460; }
+
+    .progress-bar { height: 3px; background: #e0e0e0; border-radius: 2px; overflow: hidden; margin: 6px 0; }
+    .progress-fill { height: 100%; background: #0066ff; width: 0%; transition: width .3s; }
+
+    .badge {
+      display: inline-block; padding: 2px 8px; border-radius: 12px;
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+    }
+    .badge.on  { background: #d4edda; color: #155724; }
+    .badge.off { background: #f0f0f0; color: #888; }
+
+    .stat-row {
+      display: flex; justify-content: space-between;
+      background: #fff; border-radius: 8px; padding: 10px 12px;
+      margin-bottom: 8px; border: 1px solid #eee; font-size: 12px;
+    }
+    .stat-row .val { font-weight: 700; color: #0066ff; }
+    .divider { height: 1px; background: #eee; margin: 12px 0; }
+    .hint { font-size: 11px; color: #999; margin-top: -8px; margin-bottom: 10px; }
   </style>
 </head>
 <body>
-  <h2>Sync Listings</h2>
-  <select id="platform" class="platform-select">
-    <option value="">Select platform...</option>
-    <option value="facebook_marketplace">Facebook Marketplace</option>
-    <option value="ebay">eBay</option>
-    <option value="etsy">Etsy</option>
-    <option value="offerup">OfferUp</option>
-    <option value="mercari">Mercari</option>
-    <option value="poshmark">Poshmark</option>
-    <option value="craigslist">Craigslist</option>
-  </select>
-  <button id="syncBtn" class="sync-btn">Sync My Listings</button>
-  <div id="status" class="status"></div>
-  <div class="progress-bar" id="progressBar" style="display: none;">
-    <div class="progress-fill" id="progressFill"></div>
+  <div class="header">
+    <h1>🤖 Marketplace Auto-Responder</h1>
+    <div class="tabs">
+      <button class="tab active" data-tab="sync">Sync Listings</button>
+      <button class="tab" data-tab="autoreply">Auto-Reply</button>
+      <button class="tab" data-tab="settings">Settings</button>
+    </div>
   </div>
-  <div class="listing-count" id="listingCount"></div>
+
+  <!-- SYNC TAB -->
+  <div class="panel active" id="tab-sync">
+    <label for="platform">Platform</label>
+    <select id="platform">
+      <option value="">Select platform...</option>
+      <option value="facebook_marketplace">Facebook Marketplace</option>
+      <option value="ebay">eBay</option>
+      <option value="etsy">Etsy</option>
+      <option value="offerup">OfferUp</option>
+      <option value="mercari">Mercari</option>
+      <option value="poshmark">Poshmark</option>
+      <option value="craigslist">Craigslist</option>
+    </select>
+    <button class="primary" id="syncBtn">Sync My Listings</button>
+    <div class="progress-bar" id="progressBar" style="display:none">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+    <div id="syncStatus"></div>
+    <div class="hint" id="listingCount"></div>
+    <div class="divider"></div>
+    <p style="font-size:12px;color:#666;line-height:1.5">
+      Navigate to your <strong>Facebook Marketplace → Your Listings</strong> page (or equivalent on other platforms), then click Sync.
+    </p>
+  </div>
+
+  <!-- AUTO-REPLY TAB -->
+  <div class="panel" id="tab-autoreply">
+    <div class="toggle-row">
+      <div>
+        <div class="toggle-label">Auto-Reply <span class="badge off" id="arBadge">OFF</span></div>
+        <div class="toggle-sub">Watch inbox & respond to buyers</div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="autoReplyToggle">
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="toggle-row">
+      <div>
+        <div class="toggle-label">Auto-Send</div>
+        <div class="toggle-sub">Send without confirmation prompt</div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="autoSendToggle">
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="stat-row">
+      <span>Replies generated today</span>
+      <span class="val" id="statReplies">—</span>
+    </div>
+    <div class="stat-row">
+      <span>Listings synced</span>
+      <span class="val" id="statListings">—</span>
+    </div>
+
+    <div class="divider"></div>
+
+    <button class="secondary" id="openInboxBtn">Open FB Marketplace Inbox ↗</button>
+
+    <div id="arStatus"></div>
+
+    <p style="font-size:11px;color:#999;line-height:1.5;margin-top:8px">
+      Keep this page open in a tab. The extension watches for new buyer messages and responds automatically.
+    </p>
+  </div>
+
+  <!-- SETTINGS TAB -->
+  <div class="panel" id="tab-settings">
+    <label for="serverUrl">Server URL</label>
+    <input type="text" id="serverUrl" placeholder="https://your-app.railway.app">
+
+    <button class="primary" id="saveSettings">Save Settings</button>
+    <button class="secondary" id="testConnection">Test Connection</button>
+
+    <div id="settingsStatus"></div>
+  </div>
 
   <script src="popup.js"></script>
 </body>

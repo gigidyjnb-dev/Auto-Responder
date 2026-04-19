@@ -840,6 +840,62 @@ app.post("/api/sync/facebook", setupLimiter, requireSetupAccess, async (req, res
     code: "CLOUD_SYNC_DISABLED"
   });
 });
+
+app.post('/api/extension/reply', setupLimiter, async (req, res) => {
+  const { message, listingTitle, senderName, senderId } = req.body || {};
+
+  if (!message || typeof message !== 'string' || !message.trim()) {
+    return res.status(400).json({ error: 'message is required' });
+  }
+
+  const allListings = listProfiles();
+
+  let bestProfile = null;
+
+  if (listingTitle && allListings.length > 0) {
+    const needle = listingTitle.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+    let bestScore = 0;
+    for (const row of allListings) {
+      const hay = (row.title || '').toLowerCase().split(/\s+/);
+      const overlap = needle.filter(w => hay.includes(w)).length;
+      const score = needle.length > 0 ? overlap / needle.length : 0;
+      if (score > bestScore) {
+        bestScore = score;
+        bestProfile = loadProfile(row.id);
+      }
+    }
+  }
+
+  if (!bestProfile) {
+    bestProfile = loadProfile(null);
+  }
+
+  if (!bestProfile) {
+    return res.status(404).json({
+      error: 'No listings synced yet. Open the extension, go to your Facebook Marketplace listings page, and click Sync.',
+    });
+  }
+
+  try {
+    const reply = await generateResponse({
+      question: message.trim(),
+      customerName: senderName || 'there',
+      profile: bestProfile,
+      history: [],
+      channel: 'facebook_marketplace',
+    });
+
+    return res.json({
+      ok: true,
+      reply,
+      listingId: bestProfile.id,
+      listingTitle: bestProfile.title,
+    });
+  } catch (err) {
+    console.error('extension/reply error:', err.message);
+    return res.status(500).json({ error: 'Failed to generate reply.' });
+  }
+});
 if (require.main === module) {
   app.listen(port, '0.0.0.0', () => {
     console.log(`Server running on port ${port}`);

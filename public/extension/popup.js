@@ -1,130 +1,181 @@
-const platformSelect = document.getElementById('platform');
-const syncBtn = document.getElementById('syncBtn');
-const statusDiv = document.getElementById('status');
-const progressBar = document.getElementById('progressBar');
-const progressFill = document.getElementById('progressFill');
-const listingCount = document.getElementById('listingCount');
+/* popup.js — Marketplace Auto-Responder Extension */
 
-const DEFAULT_SERVER = window.location.origin; // Use same origin as the web app
+const $ = (id) => document.getElementById(id);
 
-let SERVER_URL = DEFAULT_SERVER;
-
-function setStatus(message, type = 'info') {
-  statusDiv.textContent = message;
-  statusDiv.className = `status ${type}`;
-  statusDiv.style.display = 'block';
-}
-
-function showProgress(percent) {
-  progressBar.style.display = 'block';
-  progressFill.style.width = `${percent}%`;
-}
-
-async function scrapeCurrentPage(platform) {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-
-  if (!tab.url?.includes('marketplace') && !tab.url?.includes('ebay') && !tab.url?.includes('etsy') && !tab.url?.includes('offerup') && !tab.url?.includes('mercari') && !tab.url?.includes('poshmark') && !tab.url?.includes('craigslist')) {
-    throw new Error('Please navigate to a marketplace listings page (e.g., Facebook Marketplace → Your Listings).');
-  }
-
-  // Use universal scraper that detects platform automatically
-  try {
-    const results = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      files: ['scrapers/universal.js']
-    });
-
-    const listings = results[0]?.result;
-    if (!Array.isArray(listings)) {
-      throw new Error('Scraper did not return an array.');
-    }
-    return listings;
-  } catch (err) {
-    console.error('Scraper error:', err);
-    throw new Error(`Scraper failed: ${err.message}. Try refreshing the page and ensure listings are visible.`);
-  }
-}
-
-async function syncListings() {
-  const platform = platformSelect.value;
-  if (!platform) {
-    setStatus('Please select a platform first.', 'error');
-    return;
-  }
-
-  syncBtn.disabled = true;
-  listingCount.textContent = '';
-  showProgress(10);
-  setStatus('Scanning page for listings...', 'info');
-
-  try {
-    const listings = await scrapeCurrentPage(platform);
-
-    if (!listings || listings.length === 0) {
-      setStatus('No listings found. Make sure you are viewing your active listings page.', 'error');
-      return;
-    }
-
-    listingCount.textContent = `Found ${listings.length} listing(s)`;
-    setStatus(`Preparing ${listings.length} listings...`, 'info');
-    showProgress(30);
-
-    // Bulk upload
-    const response = await fetch(`${SERVER_URL}/api/upload-sync/bulk`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ listings, platform })
-    });
-
-    showProgress(80);
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `Server returned ${response.status}`);
-    }
-
-    const result = await response.json();
-
-    if (result.failed > 0) {
-      setStatus(`⚠️ Synced ${result.synced}/${result.total}. ${result.failed} failed.`, 'error');
-    } else {
-      setStatus(`✅ Synced ${result.synced} listings successfully!`, 'success');
-    }
-
-    listingCount.textContent = `${result.synced} synced${result.failed ? `, ${result.failed} failed` : ''}`;
-
-  } catch (error) {
-    setStatus(`Error: ${error.message}`, 'error');
-    console.error(error);
-  } finally {
-    syncBtn.disabled = false;
-    showProgress(100);
-    setTimeout(() => { progressBar.style.display = 'none'; }, 1500);
-  }
-}
-
-// Settings page for server URL
-async function showSettings() {
-  const url = await new Promise(resolve => {
-    chrome.storage.local.get(['serverUrl'], (result) => {
-      resolve(prompt('Server URL:', result.serverUrl || DEFAULT_SERVER));
-    });
+/* ── Tab switching ─────────────────────────────────────── */
+document.querySelectorAll('.tab').forEach((tab) => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach((p) => p.classList.remove('active'));
+    tab.classList.add('active');
+    $(`tab-${tab.dataset.tab}`).classList.add('active');
   });
-  if (url && url !== 'null') {
-    SERVER_URL = url;
-    chrome.storage.local.set({ serverUrl: url });
-    setStatus('Server URL saved.', 'success');
-  }
+});
+
+/* ── Status helpers ────────────────────────────────────── */
+function setStatus(elId, msg, type) {
+  const el = $(elId);
+  el.className = `status ${type}`;
+  el.textContent = msg;
 }
 
-// Load saved server URL
-chrome.storage.local.get(['serverUrl'], (result) => {
-  if (result.serverUrl) {
-    SERVER_URL = result.serverUrl;
+function clearStatus(elId) {
+  const el = $(elId);
+  el.className = '';
+  el.textContent = '';
+}
+
+function showProgress(pct) {
+  $('progressBar').style.display = 'block';
+  $('progressFill').style.width = `${pct}%`;
+}
+
+function hideProgress() {
+  setTimeout(() => { $('progressBar').style.display = 'none'; }, 1000);
+}
+
+/* ── Load settings ─────────────────────────────────────── */
+let serverUrl = '';
+
+chrome.storage.local.get(['serverUrl', 'autoReplyEnabled', 'autoSendEnabled', 'statReplies', 'statListings'], (r) => {
+  serverUrl = (r.serverUrl || '').replace(/\/$/, '');
+  $('serverUrl').value = serverUrl;
+  $('autoReplyToggle').checked = Boolean(r.autoReplyEnabled);
+  $('autoSendToggle').checked = Boolean(r.autoSendEnabled);
+  updateArBadge(Boolean(r.autoReplyEnabled));
+  $('statReplies').textContent = r.statReplies || '0';
+  $('statListings').textContent = r.statListings || '0';
+
+  if (!serverUrl) {
+    setStatus('arStatus', 'Set your Server URL in Settings first.', 'info');
   }
 });
 
-syncBtn.addEventListener('click', syncListings);
+function updateArBadge(on) {
+  const badge = $('arBadge');
+  badge.textContent = on ? 'ON' : 'OFF';
+  badge.className = `badge ${on ? 'on' : 'off'}`;
+}
 
-// Double-click status opens settings
-statusDiv.addEventListener('dblclick', showSettings);
+/* ── Auto-reply toggles ────────────────────────────────── */
+$('autoReplyToggle').addEventListener('change', (e) => {
+  const enabled = e.target.checked;
+  chrome.storage.local.set({ autoReplyEnabled: enabled });
+  updateArBadge(enabled);
+  if (enabled && !serverUrl) {
+    setStatus('arStatus', 'Please set your Server URL in Settings first.', 'error');
+    e.target.checked = false;
+    updateArBadge(false);
+    chrome.storage.local.set({ autoReplyEnabled: false });
+    return;
+  }
+  setStatus('arStatus', enabled ? 'Auto-reply is ON. Open FB Marketplace inbox.' : 'Auto-reply disabled.', enabled ? 'success' : 'info');
+});
+
+$('autoSendToggle').addEventListener('change', (e) => {
+  chrome.storage.local.set({ autoSendEnabled: e.target.checked });
+});
+
+/* ── Open inbox ────────────────────────────────────────── */
+$('openInboxBtn').addEventListener('click', () => {
+  chrome.tabs.create({ url: 'https://www.facebook.com/marketplace/inbox/' });
+});
+
+/* ── Settings tab ──────────────────────────────────────── */
+$('saveSettings').addEventListener('click', () => {
+  const url = $('serverUrl').value.trim().replace(/\/$/, '');
+  if (!url) {
+    setStatus('settingsStatus', 'Please enter a valid server URL.', 'error');
+    return;
+  }
+  serverUrl = url;
+  chrome.storage.local.set({ serverUrl: url }, () => {
+    setStatus('settingsStatus', 'Settings saved!', 'success');
+  });
+});
+
+$('testConnection').addEventListener('click', async () => {
+  const url = $('serverUrl').value.trim().replace(/\/$/, '');
+  if (!url) {
+    setStatus('settingsStatus', 'Enter a Server URL first.', 'error');
+    return;
+  }
+  setStatus('settingsStatus', 'Testing connection…', 'info');
+  try {
+    const resp = await fetch(`${url}/health`, { signal: AbortSignal.timeout(6000) });
+    const data = await resp.json().catch(() => ({}));
+    if (resp.ok) {
+      setStatus('settingsStatus', `Connected! Server is healthy.`, 'success');
+    } else {
+      setStatus('settingsStatus', `Server returned ${resp.status}.`, 'error');
+    }
+  } catch (err) {
+    setStatus('settingsStatus', `Connection failed: ${err.message}`, 'error');
+  }
+});
+
+/* ── Sync listings tab ─────────────────────────────────── */
+async function scrapeCurrentPage(platform) {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+  const knownHosts = ['facebook.com', 'ebay.com', 'etsy.com', 'offerup.com', 'mercari.com', 'poshmark.com', 'craigslist.org'];
+  const isKnown = knownHosts.some((h) => tab.url?.includes(h));
+  if (!isKnown) {
+    throw new Error('Navigate to your listings page on a supported marketplace first.');
+  }
+
+  const results = await chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    files: ['scrapers/universal.js'],
+  });
+
+  const listings = results[0]?.result;
+  if (!Array.isArray(listings)) throw new Error('Scraper returned no data. Try refreshing the page.');
+  return listings;
+}
+
+$('syncBtn').addEventListener('click', async () => {
+  const platform = $('platform').value;
+  if (!platform) { setStatus('syncStatus', 'Select a platform first.', 'error'); return; }
+  if (!serverUrl) { setStatus('syncStatus', 'Set your Server URL in Settings first.', 'error'); return; }
+
+  $('syncBtn').disabled = true;
+  clearStatus('syncStatus');
+  showProgress(10);
+
+  try {
+    const listings = await scrapeCurrentPage(platform);
+    if (!listings.length) {
+      setStatus('syncStatus', 'No listings found. Make sure you are on your listings page.', 'error');
+      return;
+    }
+
+    $('listingCount').textContent = `Found ${listings.length} listing(s)…`;
+    showProgress(40);
+
+    const resp = await fetch(`${serverUrl}/api/listings/bulk`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ listings, platform }),
+    });
+
+    showProgress(85);
+
+    const result = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(result.error || `Server error ${resp.status}`);
+
+    const count = result.count || result.synced || listings.length;
+    setStatus('syncStatus', `✅ Synced ${count} listing(s)!`, 'success');
+    $('listingCount').textContent = `${count} listings on server`;
+
+    chrome.storage.local.set({ statListings: count });
+    $('statListings').textContent = count;
+
+  } catch (err) {
+    setStatus('syncStatus', `Error: ${err.message}`, 'error');
+  } finally {
+    $('syncBtn').disabled = false;
+    showProgress(100);
+    hideProgress();
+  }
+});

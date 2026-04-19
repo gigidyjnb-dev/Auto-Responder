@@ -1,15 +1,23 @@
-// Background service worker for the Listing Sync Extension
-// Handles installation events, storage, and messaging
+/* background.js — Service Worker for Marketplace Auto-Responder */
 
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('Listing Sync Extension installed');
+  chrome.storage.local.get(['serverUrl', 'autoReplyEnabled', 'autoSendEnabled'], (r) => {
+    if (!r.serverUrl) {
+      chrome.storage.local.set({
+        serverUrl: '',
+        autoReplyEnabled: false,
+        autoSendEnabled: false,
+      });
+    }
+  });
 });
 
-// Handle messages from popup or content scripts
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'ping') {
     sendResponse({ status: 'ok' });
+    return false;
   }
+
   if (request.action === 'getTabInfo') {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (tabs[0]) {
@@ -18,13 +26,42 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse({ error: 'No active tab' });
       }
     });
-    return true; // async response
+    return true;
+  }
+
+  if (request.action === 'getReply') {
+    const { serverUrl, message, listingTitle, senderName } = request;
+    fetch(`${serverUrl}/api/extension/reply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, listingTitle, senderName }),
+    })
+      .then((r) => r.json())
+      .then((data) => sendResponse({ ok: true, data }))
+      .catch((err) => sendResponse({ ok: false, error: err.message }));
+    return true;
+  }
+
+  if (request.action === 'notify') {
+    chrome.notifications.create({
+      type: 'basic',
+      iconUrl: 'icons/icon48.png',
+      title: 'Auto-Responder',
+      message: request.message || 'Reply sent.',
+    });
+    return false;
   }
 });
 
-// Optional: Listen for tab updates to auto-detect platform
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete' && tab.url) {
-    // Could auto-enable icon based on URL
+  if (changeInfo.status === 'complete' && tab.url?.includes('facebook.com/marketplace')) {
+    chrome.storage.local.get(['autoReplyEnabled'], (r) => {
+      if (r.autoReplyEnabled) {
+        chrome.action.setBadgeText({ text: 'ON', tabId });
+        chrome.action.setBadgeBackgroundColor({ color: '#0066ff', tabId });
+      } else {
+        chrome.action.setBadgeText({ text: '', tabId });
+      }
+    });
   }
 });

@@ -1,12 +1,14 @@
 {
-  "manifest": "v3",
-  "name": "Marketplace Listing Sync",
-  "description": "Automatically sync listings from marketplace platforms to your auto-responder",
-  "version": "1.0.0",
+  "manifest_version": 3,
+  "name": "Marketplace Auto-Responder",
+  "description": "Sync listings and auto-reply to buyer messages on Facebook Marketplace and more.",
+  "version": "2.0.0",
   "permissions": [
     "activeTab",
     "storage",
-    "scripting"
+    "scripting",
+    "alarms",
+    "notifications"
   ],
   "host_permissions": [
     "https://*.facebook.com/*",
@@ -27,5 +29,12 @@
   },
   "background": {
     "service_worker": "background.js"
-  }
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.facebook.com/marketplace/inbox/*", "https://www.facebook.com/marketplace/item/*"],
+      "js": ["content-inbox.js"],
+      "run_at": "document_idle"
+    }
+  ]
 }
