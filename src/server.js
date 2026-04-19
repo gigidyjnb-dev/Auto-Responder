@@ -48,6 +48,17 @@ function assertProductionConfig() {
       '[marketplace-auto-responder] INTEGRATION_API_KEY is unset; /api/inbound and /api/integrations/* will reject requests.'
     );
   }
+
+  // Credential encryption key (for one-click import)
+  const credKey = process.env.CRED_ENCRYPTION_KEY;
+  if (!credKey || credKey.length !== 64 || !/^[0-9a-fA-F]{64}$/.test(credKey)) {
+    console.warn(
+      '[marketplace-auto-responder] CRED_ENCRYPTION_KEY is missing or invalid (must be 64 hex chars). ' +
+        'One-click Facebook import will be disabled. Generate with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
+    );
+  } else {
+    console.log('[marketplace-auto-responder] Credential encryption configured.');
+  }
 }
 
 assertProductionConfig();
