@@ -2,8 +2,15 @@ node_modules/
 .env
 uploads/*
 data/*.json
+data/test-app.db
+data/test-app.db-*
+data/intent-test.db
+data/intent-test.db-*
 !data/.gitkeep
 .aider*
+
+# Experimental / unrelated sandbox (keep locally; do not ship with the app)
+my-gemini-project/
 
 # Global gitignore patterns like "Public/" match "public/" on case-insensitive
 # filesystems and would skip our web UI — force-track these paths.

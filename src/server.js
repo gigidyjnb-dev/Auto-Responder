@@ -9,7 +9,7 @@ const helmet = require('helmet');
 const multer = require('multer');
 const path = require('path');
 
-const { handleWebhookEvent, isConfigured, sendReplyToSender, verifyWebhook } = require('./facebook');
+const { handleWebhookEvent, isConfigured, verifyWebhook } = require('./facebook');
 const { parseCraigslistEmail } = require('./emailParser');
 const { processInboundInquiry } = require('./inboundProcessor');
 const { dispatchOutboundReply } = require('./outboundBridge');
@@ -556,7 +556,14 @@ app.post('/api/outbound', integrationLimiter, (req, res) => {
   }
 
   try {
-    dispatchOutboundReply({ platform, senderId, listingId, message });
+    void dispatchOutboundReply({
+      id: 'manual',
+      channel: platform,
+      senderId,
+      customerName: null,
+      question: '(manual outbound)',
+      proposedAnswer: message,
+    }).catch((err) => console.error('Outbound bridge error:', err.message));
     registerEventIfNew(`outbound:${platform}:${senderId}:${Date.now()}`);
     return res.json({ ok: true });
   } catch (err) {
