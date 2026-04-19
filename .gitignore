@@ -12,7 +12,7 @@ data/intent-test.db-*
 # Explicitly include db.js (overrides global gitignore)
 !src/db.js
 
-# Extension build artifacts (generated)
+# Extension build artifacts (generated) — re-assert after public/** include
 public/extension/*.zip
 
 # Experimental / unrelated sandbox (keep locally; do not ship with the app)
@@ -22,4 +22,7 @@ my-gemini-project/
 # filesystems and would skip our web UI — force-track these paths.
 !/public/
 !/public/**
+
+# Re-ignore extension zip after re-including public/**
+public/extension/*.zip
 

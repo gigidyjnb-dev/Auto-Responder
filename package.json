@@ -25,7 +25,8 @@
     "express-rate-limit": "^7.5.0",
     "helmet": "^8.0.0",
     "multer": "^2.0.2",
-    "openai": "^4.67.3"
+    "openai": "^4.67.3",
+    "puppeteer": "^22.8.0"
   },
   "devDependencies": {
     "archiver": "^7.0.1",

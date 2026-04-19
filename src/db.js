@@ -31,6 +31,21 @@ CREATE TABLE IF NOT EXISTS listings (
   data_json TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS platform_credentials (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  platform TEXT NOT NULL,
+  username TEXT NOT NULL,
+  password_encrypted TEXT NOT NULL,
+  session_cookie_encrypted TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  last_used_at TEXT,
+  last_sync_at TEXT,
+  sync_count INTEGER DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_cred_platform ON platform_credentials(platform);
+
 CREATE TABLE IF NOT EXISTS queue_items (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   status TEXT NOT NULL,
@@ -141,6 +156,50 @@ function registerEventIfNew(eventKey) {
   return result.changes > 0;
 }
 
+// Platform credentials management (encrypted storage)
+function saveCredentials(platform, username, password, sessionCookie = null) {
+  const now = new Date().toISOString();
+  
+  // Check if exists
+  const existing = db.prepare('SELECT id FROM platform_credentials WHERE platform = ?').get(platform);
+  
+  if (existing) {
+    db.prepare(`
+      UPDATE platform_credentials 
+      SET username = ?, password_encrypted = ?, session_cookie_encrypted = ?, 
+          updated_at = ?, last_used_at = ?
+      WHERE platform = ?
+    `).run(username, password, sessionCookie, now, now, platform);
+    return existing.id;
+  } else {
+    const result = db.prepare(`
+      INSERT INTO platform_credentials 
+      (platform, username, password_encrypted, session_cookie_encrypted, created_at, updated_at, last_used_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(platform, username, password, sessionCookie, now, now, now);
+    return result.lastInsertRowid;
+  }
+}
+
+function getCredentials(platform) {
+  const row = db.prepare('SELECT * FROM platform_credentials WHERE platform = ?').get(platform);
+  return row || null;
+}
+
+function clearCredentials(platform) {
+  db.prepare('DELETE FROM platform_credentials WHERE platform = ?').run(platform);
+}
+
+function markCredentialsUsed(platform) {
+  db.prepare('UPDATE platform_credentials SET last_used_at = ? WHERE platform = ?')
+    .run(new Date().toISOString(), platform);
+}
+
+function recordSyncSuccess(platform) {
+  db.prepare('UPDATE platform_credentials SET last_sync_at = ?, sync_count = sync_count + 1 WHERE platform = ?')
+    .run(new Date().toISOString(), platform);
+}
+
 module.exports = {
   db,
   safeParseJson,
@@ -148,4 +207,9 @@ module.exports = {
   getSenderListing,
   setSenderListing,
   registerEventIfNew,
+  saveCredentials,
+  getCredentials,
+  clearCredentials,
+  markCredentialsUsed,
+  recordSyncSuccess,
 };

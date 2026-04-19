@@ -1,111 +1,194 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Marketplace Auto-Responder</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Space+Grotesk:wght@500;700&display=swap"
-      rel="stylesheet"
-    />
-    <link rel="stylesheet" href="/styles.css" />
-  </head>
-  <body>
-    <div class="bg-shape shape-a"></div>
-    <div class="bg-shape shape-b"></div>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Setup — Auto-Responder</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="bg-shape shape-a"></div>
+  <div class="bg-shape shape-b"></div>
 
-   <nav class="topnav">
-       <a href="/">Respond</a>
-       <a href="/admin.html">Admin Queue</a>
-       <a href="/setup-status.html">Setup Status</a>
-       <a href="/extension.html">Sync Extension</a>
-     </nav>
+  <main class="page" style="max-width: 600px; text-align: center;">
+    <div style="padding: 60px 20px;">
+      <h1 style="font-size: 42px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 16px;">
+        Two-Minute Setup
+      </h1>
+      <p class="subtitle" style="font-size: 18px; line-height: 1.6; margin-bottom: 40px; color: var(--muted);">
+        Connect your Facebook Marketplace account and we'll import all your listings automatically.
+        <br><br>
+        <strong>No extension.</strong><br>
+        <strong>No manual uploading.</strong><br>
+        <strong>Just click once.</strong>
+      </p>
 
-    <main class="page">
-      <header class="hero">
-        <p class="eyebrow">SELLER ASSISTANT</p>
-        <h1>Marketplace Inquiry Auto-Responder</h1>
-        <p class="subtitle">
-          Upload one product description, then generate personalized answers for each buyer question.
+      <!-- Step 1 -->
+      <div class="setup-step" style="text-align: left; margin-bottom: 32px;">
+        <div class="step-header">
+          <span class="step-num">1</span>
+          <span class="step-title">Enter your Facebook email</span>
+        </div>
+        <input type="email" id="email" placeholder="your@email.com" style="width: 100%; padding: 14px 16px; border: 2px solid var(--line); border-radius: 12px; font-size: 16px; margin-top: 8px;" />
+      </div>
+
+      <!-- Step 2 -->
+      <div class="setup-step" style="text-align: left; margin-bottom: 32px;">
+        <div class="step-header">
+          <span class="step-num">2</span>
+          <span class="step-title">Enter your Facebook password</span>
+        </div>
+        <input type="password" id="password" placeholder="Your Facebook password" style="width: 100%; padding: 14px 16px; border: 2px solid var(--line); border-radius: 12px; font-size: 16px; margin-top: 8px;" />
+        <p style="font-size: 12px; color: #888; margin-top: 8px;">
+          🔒 Your credentials are encrypted and stored securely. We only use them to fetch your listings.
         </p>
-      </header>
+      </div>
 
-      <section class="card">
-        <h2>1) Manage Listings</h2>
-        <div class="stack">
-          <label class="field-label">Your Listings</label>
-          <div class="listing-row">
-            <select id="listingSelect">
-              <option value="">-- No listings yet --</option>
-            </select>
-            <button type="button" id="loadListingBtn" class="btn-secondary">Load</button>
-            <button type="button" id="deleteListingBtn" class="btn-danger">Delete</button>
-          </div>
-          <div id="listingStatus" class="status"></div>
+      <!-- Step 3 -->
+      <div class="setup-step" style="text-align: left; margin-bottom: 40px;">
+        <div class="step-header">
+          <span class="step-num">3</span>
+          <span class="step-title">Click the button</span>
         </div>
-
-        <div class="card-divider"></div>
-
-        <form id="uploadForm" class="stack">
-          <label class="field-label">Upload New Listing</label>
-          <input id="productFile" name="productFile" type="file" accept=".txt,.md,.text" required />
-          <button type="submit">Upload Listing</button>
-        </form>
-        <div id="uploadStatus" class="status"></div>
-        <pre id="productSummary" class="summary hidden"></pre>
-      </section>
-
-      <section class="card">
-        <h2>2) Generate Personalized Reply</h2>
-        <div id="activeListingBadge" class="active-listing-badge hidden">
-          Responding for: <strong id="activeListingTitle"></strong>
-        </div>
-        <form id="respondForm" class="stack">
-          <select id="channel">
-            <option value="facebook_marketplace">Facebook Marketplace</option>
-            <option value="facebook_messenger">Facebook Messenger</option>
-            <option value="ebay">eBay</option>
-            <option value="etsy">Etsy</option>
-            <option value="offerup">OfferUp</option>
-            <option value="mercari">Mercari</option>
-            <option value="poshmark">Poshmark</option>
-            <option value="craigslist">Craigslist</option>
-          </select>
-          <input id="customerName" type="text" placeholder="Buyer name (optional)" />
-          <textarea
-            id="question"
-            rows="4"
-            placeholder="Example: Is this still available and can you do $120?"
-            required
-          ></textarea>
-          <button type="submit">Generate Response</button>
-        </form>
-        <div id="responseStatus" class="status"></div>
-        <pre id="responseBox" class="summary hidden"></pre>
-      </section>
-
-      <section class="card">
-        <h2>3) Sync Your Listings Automatically</h2>
-        <p class="subtitle" style="font-size: 14px; margin-bottom: 16px;">
-          Don't manually copy listings. Install our Chrome extension to auto-import all your marketplace listings with one click.
+        <p style="color: var(--muted); font-size: 14px; margin-top: 8px;">
+          We'll log into Facebook, grab all your active listings, and import them here. Takes ~10 seconds.
         </p>
-        <div class="platform-grid" style="margin: 16px 0;">
-          <div class="platform-badge">Facebook Marketplace</div>
-          <div class="platform-badge">eBay</div>
-          <div class="platform-badge">Etsy</div>
-          <div class="platform-badge">OfferUp</div>
-          <div class="platform-badge">Mercari</div>
-          <div class="platform-badge">Poshmark</div>
-          <div class="platform-badge">Craigslist</div>
-        </div>
-        <a href="/extension.html" class="btn-primary" style="display: inline-block; text-decoration: none;">
-          📦 Get Sync Extension
-        </a>
-      </section>
-     </main>
+      </div>
 
-    <script src="/script.js"></script>
-  </body>
+      <button id="connectBtn" style="
+        width: 100%;
+        padding: 18px 24px;
+        font-size: 18px;
+        font-weight: 700;
+        background: linear-gradient(135deg, #0066ff, #00d4ff);
+        color: white;
+        border: none;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: transform 120ms, box-shadow 120ms;
+        margin-bottom: 20px;
+      " onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
+        🚀 Connect & Import My Listings
+      </button>
+
+      <div id="status" style="
+        padding: 12px 16px;
+        border-radius: 8px;
+        margin-top: 16px;
+        font-size: 14px;
+        display: none;
+      "></div>
+
+      <div id="progress" style="margin-top: 20px; display: none;">
+        <div style="height: 4px; background: #e0e0e0; border-radius: 2px; overflow: hidden;">
+          <div id="progressBar" style="height: 100%; background: #0066ff; width: 0%; transition: width 0.5s;"></div>
+        </div>
+        <p id="progressText" style="font-size: 13px; color: var(--muted); margin-top: 8px;">Connecting...</p>
+      </div>
+
+      <div id="result" style="display: none; margin-top: 24px;">
+        <div style="background: #d4edda; color: #155724; padding: 16px; border-radius: 12px; font-weight: 600;">
+          ✅ Setup complete! <span id="count"></span> listings imported.
+        </div>
+        <p style="margin-top: 12px; color: var(--muted);">
+          You can now <a href="/app.html" style="color: #0066ff;">generate responses</a> for your buyers.
+        </p>
+      </div>
+
+      <div id="error" style="display: none; margin-top: 16px;">
+        <div style="background: #f8d7da; color: #721c24; padding: 16px; border-radius: 12px;">
+          <strong>Oops:</strong> <span id="errorMsg"></span>
+        </div>
+        <p style="font-size: 13px; color: #666; margin-top: 8px;">
+          Common issues:<br>
+          • Wrong email/password<br>
+          • Two-factor authentication enabled on your account<br>
+          • Facebook security check required (check your email/phone)
+        </p>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    document.getElementById('connectBtn').addEventListener('click', async () => {
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+
+      if (!email || !password) {
+        alert('Please enter both email and password.');
+        return;
+      }
+
+      const btn = document.getElementById('connectBtn');
+      const status = document.getElementById('status');
+      const progress = document.getElementById('progress');
+      const progressBar = document.getElementById('progressBar');
+      const progressText = document.getElementById('progressText');
+      const result = document.getElementById('result');
+      const error = document.getElementById('error');
+      const errorMsg = document.getElementById('errorMsg');
+
+      btn.disabled = true;
+      btn.textContent = '⏳ Connecting...';
+      status.style.display = 'block';
+      status.className = 'status info';
+      status.textContent = 'Starting connection...';
+      progress.style.display = 'block';
+      result.style.display = 'none';
+      error.style.display = 'none';
+
+      try {
+        // Step 1: Save credentials
+        progressBar.style.width = '20%';
+        progressText.textContent = 'Saving credentials securely...';
+
+        const saveRes = await fetch('/api/credentials/facebook', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+
+        if (!saveRes.ok) throw new Error('Failed to save credentials');
+
+        // Step 2: Trigger sync
+        progressBar.style.width = '40%';
+        progressText.textContent = 'Logging into Facebook...';
+
+        const syncRes = await fetch('/api/sync/facebook', { method: 'POST' });
+        const data = await syncRes.json();
+
+        if (!syncRes.ok) {
+          if (data.error?.includes('2FA')) {
+            throw new Error('Facebook requires two-factor authentication. Please complete 2FA in your browser, then try again.');
+          }
+          throw new Error(data.error || 'Sync failed');
+        }
+
+        progressBar.style.width = '100%';
+        progressText.textContent = 'Importing listings...';
+
+        // Show result after brief delay
+        setTimeout(() => {
+          progress.style.display = 'none';
+          status.style.display = 'none';
+          result.style.display = 'block';
+          document.getElementById('count').textContent = data.count || data.listings?.length || 'multiple';
+          btn.style.display = 'none';
+        }, 800);
+
+      } catch (err) {
+        console.error(err);
+        status.style.display = 'none';
+        progress.style.display = 'none';
+        error.style.display = 'block';
+        errorMsg.textContent = err.message;
+        btn.disabled = false;
+        btn.textContent = '🚀 Connect & Import My Listings';
+      }
+    });
+  </script>
+</body>
 </html>

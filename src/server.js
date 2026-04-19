@@ -69,8 +69,10 @@ const { getById, getPending, markApproved, markRejected, markSent } = require('.
 const { getPlatforms } = require('./platforms');
 const { parseProductDescription } = require('./productParser');
 const { generateResponse } = require('./responseEngine');
-const { getSenderListing, registerEventIfNew, setSenderListing } = require('./db');
+const { getSenderListing, registerEventIfNew, setSenderListing, saveCredentials, getCredentials, clearCredentials, markCredentialsUsed, recordSyncSuccess } = require('./db');
 const { deleteProfile, listProfiles, loadProfile, saveProfile } = require('./storage');
+const { FacebookScraper } = require('./facebookScraper');
+const { encrypt, decrypt } = require('./credentialManager');
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -718,6 +720,110 @@ app.post('/api/outbound', integrationLimiter, (req, res) => {
     return res.json({ ok: true });
   } catch (err) {
     return res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
+// One-Click Setup: Save credentials & sync
+// ============================================
+
+// Save encrypted Facebook credentials
+app.post('/api/credentials/facebook', (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password required' });
+  }
+
+  try {
+    const encryptedPassword = encrypt(password);
+    saveCredentials('facebook_marketplace', email, encryptedPassword, null);
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Trigger sync for Facebook (uses stored credentials)
+app.post('/api/sync/facebook', async (req, res) => {
+  const creds = getCredentials('facebook_marketplace');
+  if (!creds) {
+    return res.status(400).json({ error: 'No credentials stored. Connect your account first.' });
+  }
+
+  markCredentialsUsed('facebook_marketplace');
+
+  try {
+    const password = decrypt(creds.password_encrypted);
+    if (!password) {
+      throw new Error('Failed to decrypt stored credentials');
+    }
+
+    const scraper = new FacebookScraper();
+    const listings = await scraper.loginAndScrape({
+      username: creds.username,
+      password: password
+    });
+
+    // Convert listings to profiles and save
+    let saved = 0;
+    for (const listing of listings) {
+      try {
+        const now = new Date().toISOString();
+        const id = `fb_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+        const profile = {
+          id,
+          title: listing.title.substring(0, 200),
+          price: listing.price || 'Contact for price',
+          condition: 'Used - Good',
+          uploaded_at: now,
+          data_json: JSON.stringify({
+            platform: 'facebook_marketplace',
+            originalListingId: listing.originalId || null,
+            description: listing.description || '',
+            images: listing.images || [],
+            url: listing.url || '',
+            scrapedAt: now,
+            syncedAt: now,
+          })
+        };
+
+        saveProfile(profile);
+        saved++;
+      } catch (err) {
+        console.error('Error saving listing:', err.message);
+      }
+    }
+
+    recordSyncSuccess('facebook_marketplace');
+
+    return res.json({
+      ok: true,
+      message: `Imported ${saved} listings`,
+      count: saved,
+      listings: listings.map(l => ({ title: l.title, price: l.price }))
+    });
+
+  } catch (err) {
+    console.error('Sync error:', err);
+    let message = err.message;
+
+    // Handle specific error cases
+    if (message.includes('2FA') || message.includes('checkpoint')) {
+      return res.status(403).json({
+        error: 'Facebook requires two-factor authentication or security verification. Please complete this in your browser first, then try again.',
+        code: 'FACEBOOK_2FA_REQUIRED'
+      });
+    }
+
+    if (message.includes('Navigation timeout') || message.includes('net::ERR')) {
+      return res.status(502).json({
+        error: 'Could not reach Facebook. Please try again later.',
+        code: 'NETWORK_ERROR'
+      });
+    }
+
+    return res.status(500).json({ error: message || 'Sync failed' });
   }
 });
 
