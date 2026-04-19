@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const cors = require('cors');
 const crypto = require('crypto');
 const express = require('express');
@@ -8,11 +10,10 @@ const multer = require('multer');
 const path = require('path');
 
 const { handleWebhookEvent, isConfigured, sendReplyToSender, verifyWebhook } = require('./facebook');
-const { addTurn } = require('./conversationStore');
 const { parseCraigslistEmail } = require('./emailParser');
 const { processInboundInquiry } = require('./inboundProcessor');
 const { dispatchOutboundReply } = require('./outboundBridge');
-const { getAll, getById, getPending, markApproved, markRejected, markSent } = require('./leadQueue');
+const { getById, getPending, markApproved, markRejected, markSent } = require('./leadQueue');
 const { getPlatforms } = require('./platforms');
 const { parseProductDescription } = require('./productParser');
 const { generateResponse } = require('./responseEngine');
@@ -276,33 +277,53 @@ app.post('/api/admin/logout', (req, res) => {
   res.json({ ok: true });
 });
 
+async function approveQueueById(req, res) {
+  const id = req.params.id || req.body?.id;
+  if (!id) {
+    return res.status(400).json({ error: 'Missing lead ID.' });
+  }
+
+  const existing = getById(String(id));
+  if (!existing || existing.status !== 'pending') {
+    return res.status(404).json({ error: 'Lead not found.' });
+  }
+
+  const lead = markApproved(String(id));
+  if (!lead) {
+    return res.status(404).json({ error: 'Lead not found.' });
+  }
+
+  const dispatch = await dispatchOutboundReply(lead);
+  return res.json({ ok: true, dispatch, item: lead });
+}
+
+// Register body-style routes before `/:id/...` so `approve`/`reject` are not captured as IDs.
 app.post('/api/admin/queue/approve', requireAdmin, requireAdminCsrf, (req, res) => {
-  const { id } = req.body;
+  approveQueueById(req, res).catch((err) => res.status(500).json({ error: err.message }));
+});
+
+app.post('/api/admin/queue/reject', requireAdmin, requireAdminCsrf, rejectQueueById);
+
+app.post('/api/admin/queue/:id/approve', requireAdmin, requireAdminCsrf, (req, res) => {
+  approveQueueById(req, res).catch((err) => res.status(500).json({ error: err.message }));
+});
+
+function rejectQueueById(req, res) {
+  const id = req.params.id || req.body?.id;
   if (!id) {
     return res.status(400).json({ error: 'Missing lead ID.' });
   }
 
-  const lead = markApproved(id);
+  const reason = typeof req.body?.reason === 'string' ? req.body.reason : null;
+  const lead = markRejected(String(id), reason);
   if (!lead) {
     return res.status(404).json({ error: 'Lead not found.' });
   }
 
-  return res.json({ ok: true });
-});
+  return res.json({ ok: true, item: lead });
+}
 
-app.post('/api/admin/queue/reject', requireAdmin, requireAdminCsrf, (req, res) => {
-  const { id } = req.body;
-  if (!id) {
-    return res.status(400).json({ error: 'Missing lead ID.' });
-  }
-
-  const lead = markRejected(id);
-  if (!lead) {
-    return res.status(404).json({ error: 'Lead not found.' });
-  }
-
-  return res.json({ ok: true });
-});
+app.post('/api/admin/queue/:id/reject', requireAdmin, requireAdminCsrf, rejectQueueById);
 
 app.post('/api/admin/queue/sent', requireAdmin, requireAdminCsrf, (req, res) => {
   const { id } = req.body;
@@ -343,14 +364,14 @@ app.post('/api/upload', upload.single('productFile'), (req, res) => {
 
   try {
     const profile = parseProductDescription(content, originalname);
-    const id = saveProfile(profile);
-    return res.json({ ok: true, id });
+    saveProfile(profile);
+    return res.json({ ok: true, id: profile.id, profile });
   } catch (err) {
     return res.status(400).json({ error: err.message });
   }
 });
 
-app.post('/api/generate', (req, res) => {
+app.post('/api/generate', async (req, res) => {
   const { listingId, channel, question, customerName } = req.body;
   if (!question || typeof question !== 'string' || question.trim().length < 5) {
     return res.status(400).json({ error: 'Question must be at least 5 characters long.' });
@@ -362,7 +383,7 @@ app.post('/api/generate', (req, res) => {
       return res.status(404).json({ error: 'Product listing not found.' });
     }
 
-    const response = generateResponse({
+    const response = await generateResponse({
       listing,
       channel,
       question,
@@ -375,23 +396,150 @@ app.post('/api/generate', (req, res) => {
   }
 });
 
-app.post('/api/inbound', integrationLimiter, (req, res) => {
+app.post('/api/respond', async (req, res) => {
+  const { listingId, channel, question, customerName } = req.body;
+  if (!question || typeof question !== 'string' || question.trim().length < 5) {
+    return res.status(400).json({ error: 'Question must be at least 5 characters long.' });
+  }
+
+  const listings = listProfiles();
+  if (listings.length > 1 && !listingId) {
+    return res.status(400).json({ error: 'listingId is required when multiple listings exist.' });
+  }
+
+  try {
+    const listing = loadProfile(listingId);
+    if (!listing) {
+      return res.status(404).json({ error: 'Product listing not found.' });
+    }
+
+    const answer = await generateResponse({
+      listing,
+      channel,
+      question,
+      customerName,
+    });
+
+    return res.json({ answer });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/integrations/inbound', integrationLimiter, async (req, res) => {
   if (!integrationAuthOk(req)) {
     return res.status(401).json({ error: 'Invalid integration key.' });
   }
 
-  const { platform, senderId, message } = req.body;
+  const { platform, senderId, customerName, question, listingId, queueOnly, eventId } = req.body || {};
+  const headerEventId = req.header('x-event-id');
+  const dedupeKey = eventId || headerEventId;
+
+  if (!platform || !senderId || !question) {
+    return res.status(400).json({ error: 'Missing required fields.' });
+  }
+
+  if (dedupeKey) {
+    const isNew = registerEventIfNew(`inbound:${dedupeKey}`);
+    if (!isNew) {
+      return res.json({ ok: true, duplicate: true });
+    }
+  }
+
+  const resolvedListingId = resolveListingId({ requestedListingId: listingId, platform, senderId });
+  if (!resolvedListingId) {
+    return res.status(400).json({
+      error: 'Unable to resolve listing. Pass listingId or map this sender to a listing first.',
+    });
+  }
+
+  try {
+    const result = await processInboundInquiry({
+      channel: platform,
+      senderId,
+      customerName,
+      question,
+      listingId: resolvedListingId,
+      queueOnly: Boolean(queueOnly),
+    });
+
+    return res.json({
+      ok: true,
+      duplicate: false,
+      ...result,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/integrations/craigslist/email', integrationLimiter, async (req, res) => {
+  if (!integrationAuthOk(req)) {
+    return res.status(401).json({ error: 'Invalid integration key.' });
+  }
+
+  const { from, subject, text, listingId, queueOnly } = req.body || {};
+  const parsed = parseCraigslistEmail({ from, subject, text });
+
+  const resolvedListingId = resolveListingId({
+    requestedListingId: listingId,
+    platform: 'craigslist',
+    senderId: parsed.senderId,
+  });
+
+  if (!resolvedListingId) {
+    return res.status(400).json({
+      error: 'Unable to resolve listing. Pass listingId or map this sender to a listing first.',
+    });
+  }
+
+  try {
+    const result = await processInboundInquiry({
+      channel: 'craigslist',
+      senderId: parsed.senderId,
+      customerName: parsed.customerName,
+      question: parsed.question,
+      listingId: resolvedListingId,
+      queueOnly: Boolean(queueOnly),
+    });
+
+    return res.json({
+      ok: true,
+      platform: 'craigslist',
+      parsed,
+      ...result,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/inbound', integrationLimiter, async (req, res) => {
+  if (!integrationAuthOk(req)) {
+    return res.status(401).json({ error: 'Invalid integration key.' });
+  }
+
+  const { platform, senderId, message, listingId } = req.body || {};
   if (!platform || !senderId || !message) {
     return res.status(400).json({ error: 'Missing required fields.' });
   }
 
+  const resolvedListingId = resolveListingId({ requestedListingId: listingId, platform, senderId });
+  if (!resolvedListingId) {
+    return res.status(400).json({
+      error: 'Unable to resolve listing. Pass listingId or map this sender to a listing first.',
+    });
+  }
+
   try {
-    const reply = processInboundInquiry({ platform, senderId, message });
-    if (reply) {
-      registerEventIfNew(platform, senderId, 'inbound');
-      return res.json({ ok: true, reply });
-    }
-    return res.json({ ok: true, reply: null });
+    const reply = await processInboundInquiry({
+      channel: platform,
+      senderId,
+      question: message,
+      listingId: resolvedListingId,
+      queueOnly: false,
+    });
+    return res.json({ ok: true, reply });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
@@ -409,13 +557,17 @@ app.post('/api/outbound', integrationLimiter, (req, res) => {
 
   try {
     dispatchOutboundReply({ platform, senderId, listingId, message });
-    registerEventIfNew(platform, senderId, 'outbound');
+    registerEventIfNew(`outbound:${platform}:${senderId}:${Date.now()}`);
     return res.json({ ok: true });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
 });
 
-app.listen(port, '0.0.0.0', () => {
-  console.log(`Server running on port ${port}`);
-});
+if (require.main === module) {
+  app.listen(port, '0.0.0.0', () => {
+    console.log(`Server running on port ${port}`);
+  });
+}
+
+module.exports = { app };
