@@ -6,6 +6,8 @@ data/test-app.db
 data/test-app.db-*
 data/intent-test.db
 data/intent-test.db-*
+data/test-listing-parser.db
+data/test-listing-parser.db-*
 !data/.gitkeep
 .aider*
 

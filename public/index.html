@@ -38,13 +38,14 @@
           The most reliable way. No passwords needed, no 2FA issues. Just drag and click.
         </p>
         
-        <ol style="font-size: 14px; line-height: 1.8; margin-bottom: 24px; padding-left: 20px;">
+        <ol style="font-size: 15px; line-height: 1.8; margin-bottom: 24px; padding-left: 20px;">
           <li>Drag this button to your browser's <strong>Bookmarks Bar</strong>:</li>
-          <li style="list-style: none; margin: 16px 0;">
-            <a id="bookmarkletLink" href="#" class="bookmarklet-btn">🚀 Sync My Listings</a>
+          <li style="list-style: none; margin: 20px 0;">
+            <a id="bookmarkletLink" href="#" class="bookmarklet-btn" style="background: #0066ff; color: white; border: none; padding: 12px 28px; box-shadow: 0 4px 14px rgba(0,102,255,0.39);">🚀 Sync My Listings</a>
+            <div style="font-size: 12px; color: var(--muted); margin-top: 8px;">(Tip: Press Ctrl+Shift+B if your bar is hidden)</div>
           </li>
-          <li>Go to your <a href="https://www.facebook.com/marketplace/you/listings" target="_blank" style="color: #0066ff; font-weight: 600;">Facebook Marketplace Listings</a> page.</li>
-          <li>Click the <strong>🚀 Sync My Listings</strong> bookmark in your bar.</li>
+          <li>Go to your <a href="https://www.facebook.com/marketplace/you/listings" target="_blank" style="color: #0066ff; font-weight: 700; text-decoration: underline;">Facebook Listings</a> page.</li>
+          <li>Click the <strong>🚀 Sync My Listings</strong> button in your bar.</li>
         </ol>
       </div>
 
@@ -93,62 +94,45 @@ INTEGRATION_API_KEY=REPLACE_WITH_STRONG_KEY
     // Build the bookmarklet script
     const origin = window.location.origin;
     const bookmarkletCode = `javascript:(function(){
-      const listings = [];
-      const seen = new Set();
-
-      function getText(el) { return el ? el.textContent.trim() : ''; }
-
-      function tryCard(el) {
-        const link = el.closest('a') || (el.tagName === 'A' ? el : null);
-        const href = link ? link.href : '';
-        if (!href.includes('/marketplace/item/') && !href.includes('/marketplace/')) return;
-        if (seen.has(href)) return;
-
-        const allSpans = el.querySelectorAll('span[dir="auto"], span');
-        let title = '';
-        let price = '';
-
-        for (const s of allSpans) {
-          const t = getText(s);
-          if (!title && t.length > 3 && t.length < 150 && !/^\$/.test(t) && !/^\\d+$/.test(t)) title = t;
-          if (!price && /\\$[\\d,]+/.test(t)) price = t;
-        }
-
-        if (!title) {
-          const img = el.querySelector('img');
-          title = img ? (img.alt || '').trim() : '';
-        }
-
-        const img = el.querySelector('img');
-        if (title && title.length > 1) {
-          seen.add(href);
-          listings.push({ title, price: price || '', url: href, images: img && img.src ? [img.src] : [] });
-        }
+      console.log('🚀 Syncing listings...');
+      const pageText = document.body.innerText;
+      const links = Array.from(document.querySelectorAll('a[href*="/item/"]')).map(a => a.href);
+      const images = Array.from(document.querySelectorAll('img')).map(img => img.src).filter(src => src.includes('https://scontent'));
+      
+      if (!pageText || pageText.length < 100) {
+        return alert('❌ Could not read page. Make sure you are on the Facebook Marketplace Listings page.');
       }
 
-      document.querySelectorAll('a[href*="/marketplace/item/"]').forEach(tryCard);
-      document.querySelectorAll('[role="main"] div[style*="border-radius"]').forEach(tryCard);
-      document.querySelectorAll('[aria-label]').forEach(el => {
-        const label = el.getAttribute('aria-label') || '';
-        if (label.length > 3 && label.length < 150) {
-          const href = el.closest('a')?.href || '';
-          if (href.includes('/marketplace/') && !seen.has(href)) {
-            seen.add(href);
-            listings.push({ title: label, price: '', url: href, images: [] });
-          }
-        }
-      });
+      const status = document.createElement('div');
+      status.style.position = 'fixed';
+      status.style.top = '20px';
+      status.style.right = '20px';
+      status.style.padding = '16px 24px';
+      status.style.background = '#0066ff';
+      status.style.color = 'white';
+      status.style.borderRadius = '12px';
+      status.style.zIndex = '10000';
+      status.style.fontWeight = 'bold';
+      status.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+      status.innerText = '⏳ Syncing listings...';
+      document.body.appendChild(status);
 
-      if (listings.length === 0) return alert('No listings found. Make sure your listings are visible on screen and try scrolling down to load them first.');
-
-      fetch('${origin}/api/listings/bulk', {
+      fetch('${origin}/api/listings/parse-page', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ listings })
+        body: JSON.stringify({ pageText, links, images })
       })
       .then(r => r.json())
-      .then(data => alert('✅ Synced ' + data.count + ' listings!'))
-      .catch(err => alert('❌ Sync failed: ' + err.message));
+      .then(data => {
+        status.style.background = '#28a745';
+        status.innerText = '✅ Synced ' + data.count + ' listings!';
+        setTimeout(() => status.remove(), 4000);
+      })
+      .catch(err => {
+        status.style.background = '#dc3545';
+        status.innerText = '❌ Error: ' + err.message;
+        setTimeout(() => status.remove(), 4000);
+      });
     })();`;
     
     document.getElementById('bookmarkletLink').href = bookmarkletCode;

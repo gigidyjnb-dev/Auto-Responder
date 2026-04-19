@@ -938,6 +938,100 @@ app.get('/api/stats', (req, res) => {
     pendingReplies: pending.length,
   });
 });
+
+app.post('/api/listings/parse-page', setupLimiter, async (req, res) => {
+  const { pageText, links, images } = req.body || {};
+  if (!pageText || pageText.trim().length < 10) {
+    return res.status(400).json({ error: 'No page text provided.' });
+  }
+
+  const text = pageText.substring(0, 15000);
+  const now = new Date().toISOString();
+  let listings = [];
+
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (apiKey) {
+    try {
+      const { OpenAI } = require('openai');
+      const client = new OpenAI({ apiKey });
+      const resp = await client.chat.completions.create({
+        model: process.env.MODEL_NAME || 'gpt-4o-mini',
+        messages: [{
+          role: 'system',
+          content: 'You are a professional marketplace data extractor. Extract product listings from the provided text. Return ONLY a JSON array.'
+        }, {
+          role: 'user',
+          content: `Extract all active marketplace listings from this text. 
+          Return ONLY a JSON array of objects. 
+          Each object MUST have:
+          - "title": (string) The product name.
+          - "price": (string) The price including currency symbol (e.g. "$150").
+          - "status": (string) "Active" or "Sold" or "Pending". Only include "Active" items if possible.
+
+          Page text:
+          ${text}
+
+          JSON Output Format:
+          [{"title":"Example Item","price":"$50","status":"Active"}]`
+        }],
+        temperature: 0,
+        max_tokens: 2000,
+      });
+      const raw = resp.choices[0].message.content.trim().replace(/^```json|^```|```$/gm, '');
+      listings = JSON.parse(raw).filter(item => item.status !== 'Sold');
+    } catch (err) {
+      console.error('AI parse error:', err.message);
+    }
+  }
+
+  // Fallback simple regex if AI fails or no API key
+  if (!listings.length) {
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const priceMatch = line.match(/^\$[\d,]+/) || (lines[i + 1] || '').match(/^\$[\d,]+/);
+      const isTitle = line.length > 3 && line.length < 120
+        && !/^(active|sold|pending|edit|delete|boost|share|manage|more|see|view|add|create|your|marketplace|facebook|home|notifications|messages|groups|watch)/i.test(line)
+        && !/^\$/.test(line)
+        && /[a-zA-Z]/.test(line);
+      
+      if (isTitle && priceMatch) {
+        listings.push({ title: line, price: priceMatch[0] });
+      }
+    }
+  }
+
+  const linkMap = Array.isArray(links) ? links : [];
+  const imageMap = Array.isArray(images) ? images : [];
+  let saved = 0;
+
+  for (const item of listings) {
+    if (!item.title || item.title.length < 2) continue;
+    try {
+      // Find the most likely link (item link containing numeric ID)
+      const url = linkMap.find(l => l.includes('/item/')) || '';
+      
+      saveProfile({
+        id: `sync_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+        title: item.title.substring(0, 200),
+        price: item.price || '',
+        condition: 'Used',
+        uploadedAt: now,
+        highlights: [item.title],
+        description: item.title,
+        url,
+        images: imageMap.slice(0, 3), // Grab first few images as best guess
+        syncedAt: now,
+        source: 'bookmarklet-ai',
+      });
+      saved++;
+    } catch (e) {
+      console.error('Save error:', e.message);
+    }
+  }
+
+  return res.json({ ok: true, count: saved, parsed: listings.length });
+});
 if (require.main === module) {
   app.listen(port, '0.0.0.0', () => {
     console.log(`Server running on port ${port}`);
