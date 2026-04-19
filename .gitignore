@@ -9,6 +9,9 @@ data/intent-test.db-*
 !data/.gitkeep
 .aider*
 
+# Explicitly include db.js (overrides global gitignore)
+!src/db.js
+
 # Experimental / unrelated sandbox (keep locally; do not ship with the app)
 my-gemini-project/
 
