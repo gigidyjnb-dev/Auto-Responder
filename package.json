@@ -14,8 +14,7 @@
     "test": "node --test tests",
     "db:backup": "node scripts/db-backup.js",
     "db:restore": "node scripts/db-restore.js",
-    "build:ext": "node scripts/build-extension.js",
-    "postinstall": "node scripts/build-extension.js"
+    "build:ext": "node scripts/build-extension.js"
   },
   "dependencies": {
     "better-sqlite3": "^11.8.1",
