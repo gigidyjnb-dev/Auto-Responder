@@ -892,6 +892,20 @@ app.post('/api/sync/facebook', setupLimiter, requireSetupAccess, async (req, res
       });
     }
 
+    if (message.includes('FACEBOOK_LOGIN_FORM_NOT_FOUND')) {
+      return res.status(502).json({
+        error: 'Facebook login page changed and the form could not be detected. Please retry shortly.',
+        code: 'FACEBOOK_LOGIN_FORM_NOT_FOUND',
+      });
+    }
+
+    if (message.includes('FACEBOOK_LISTINGS_NOT_FOUND')) {
+      return res.status(502).json({
+        error: 'Logged in but listings did not load from Marketplace. Try again in a moment.',
+        code: 'FACEBOOK_LISTINGS_NOT_FOUND',
+      });
+    }
+
     if (message.includes('2FA') || message.includes('checkpoint')) {
       return res.status(403).json({
         error: 'Facebook requires two-factor authentication or security verification. Please complete this in your browser first, then try again.',
