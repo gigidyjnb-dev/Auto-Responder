@@ -82,7 +82,6 @@ const { parseProductDescription } = require('./productParser');
 const { generateResponse } = require('./responseEngine');
 const { getSenderListing, registerEventIfNew, setSenderListing, saveCredentials, getCredentials, clearCredentials, markCredentialsUsed, recordSyncSuccess } = require('./db');
 const { deleteProfile, listProfiles, loadProfile, saveProfile } = require('./storage');
-const { FacebookScraper } = require('./facebookScraper');
 const { encrypt, decrypt, getKeyConfigError } = require('./credentialManager');
 
 const app = express();
@@ -834,152 +833,13 @@ app.post('/api/listings/bulk', setupLimiter, (req, res) => {
   return res.json({ ok: true, count: saved });
 });
 
-app.post('/api/credentials/facebook', setupLimiter, requireSetupAccess, (req, res) => {
-  const keyIssue = getCredentialKeyErrorResponse();
-  if (keyIssue) {
-    return res.status(keyIssue.status).json(keyIssue.body);
-  }
 
-  const email = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
-  const password = typeof req.body?.password === 'string' ? req.body.password : '';
-
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password required.', code: 'MISSING_CREDENTIAL_FIELDS' });
-  }
-
-  if (password.length < 4 || password.length > 200) {
-    return res.status(400).json({ error: 'Password length is invalid.', code: 'INVALID_PASSWORD_LENGTH' });
-  }
-
-  try {
-    const encryptedPassword = encrypt(password);
-    saveCredentials('facebook_marketplace', email, encryptedPassword, null);
-    return res.json({ ok: true });
-  } catch (err) {
-    if (err.message === 'CRED_ENCRYPTION_KEY_INVALID') {
-      return res.status(503).json({
-        error: 'Credential encryption is not configured. Set CRED_ENCRYPTION_KEY to a 64-character hex value in Railway Variables.',
-        code: 'CRED_ENCRYPTION_KEY_INVALID',
-      });
-    }
-
-    if (err.message === 'CREDENTIAL_ENCRYPTION_FAILED') {
-      return res.status(500).json({ error: 'Failed to secure credentials for storage.', code: 'CREDENTIAL_ENCRYPTION_FAILED' });
-    }
-
-    return res.status(500).json({ error: 'Failed to save credentials.', code: 'CREDENTIAL_SAVE_FAILED' });
-  }
+app.post("/api/sync/facebook", setupLimiter, requireSetupAccess, async (req, res) => {
+  return res.status(501).json({ 
+    error: "Cloud Sync is disabled for stability. Please use the Magic Bookmarklet on the setup page for foolproof syncing.",
+    code: "CLOUD_SYNC_DISABLED"
+  });
 });
-
-app.post('/api/sync/facebook', setupLimiter, requireSetupAccess, async (req, res) => {
-  const keyIssue = getCredentialKeyErrorResponse();
-  if (keyIssue) {
-    return res.status(keyIssue.status).json(keyIssue.body);
-  }
-
-  const creds = getCredentials('facebook_marketplace');
-  if (!creds) {
-    return res.status(400).json({ error: 'No credentials stored. Connect your account first.', code: 'NO_STORED_CREDENTIALS' });
-  }
-
-  markCredentialsUsed('facebook_marketplace');
-
-  try {
-    const password = decrypt(creds.password_encrypted);
-    if (!password) {
-      return res.status(500).json({
-        error: 'Stored credentials could not be decrypted. Reconnect your Facebook account and try again.',
-        code: 'CREDENTIAL_DECRYPT_FAILED',
-      });
-    }
-
-    const scraper = new FacebookScraper();
-    const listings = await scraper.loginAndScrape({
-      email: creds.username,
-      password,
-    });
-
-    let saved = 0;
-    for (const listing of listings) {
-      try {
-        const now = new Date().toISOString();
-        const id = `fb_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-        const profile = {
-          id,
-          title: listing.title.substring(0, 200),
-          price: listing.price || 'Contact for price',
-          condition: 'Used - Good',
-          uploaded_at: now,
-          data_json: JSON.stringify({
-            platform: 'facebook_marketplace',
-            originalListingId: listing.originalId || null,
-            description: listing.description || '',
-            images: listing.images || [],
-            url: listing.url || '',
-            scrapedAt: now,
-            syncedAt: now,
-          }),
-        };
-
-        saveProfile(profile);
-        saved++;
-      } catch (err) {
-        console.error('Error saving listing:', err.message);
-      }
-    }
-
-    recordSyncSuccess('facebook_marketplace');
-
-    return res.json({
-      ok: true,
-      message: `Imported ${saved} listings`,
-      count: saved,
-      listings: listings.map((l) => ({ title: l.title, price: l.price })),
-    });
-  } catch (err) {
-    const message = err?.message || '';
-    console.error('Sync error:', err);
-
-    if (message.includes('FACEBOOK_LOGIN_FAILED')) {
-      return res.status(401).json({
-        error: 'Facebook login failed. Re-check your email/password and try again.',
-        code: 'FACEBOOK_LOGIN_FAILED',
-      });
-    }
-
-    if (message.includes('FACEBOOK_LOGIN_FORM_NOT_FOUND')) {
-      return res.status(502).json({
-        error: 'Facebook login page changed and the form could not be detected. Please retry shortly.',
-        code: 'FACEBOOK_LOGIN_FORM_NOT_FOUND',
-      });
-    }
-
-    if (message.includes('FACEBOOK_LISTINGS_NOT_FOUND')) {
-      return res.status(502).json({
-        error: 'Logged in but listings did not load from Marketplace. Try again in a moment.',
-        code: 'FACEBOOK_LISTINGS_NOT_FOUND',
-      });
-    }
-
-    if (message.includes('2FA') || message.includes('checkpoint')) {
-      return res.status(403).json({
-        error: 'Facebook requires two-factor authentication or security verification. Please complete this in your browser first, then try again.',
-        code: 'FACEBOOK_2FA_REQUIRED',
-      });
-    }
-
-    if (message.includes('Navigation timeout') || message.includes('net::ERR')) {
-      return res.status(502).json({
-        error: 'Could not reach Facebook. Please try again later.',
-        code: 'NETWORK_ERROR',
-      });
-    }
-
-    return res.status(500).json({ error: 'Sync failed.', code: 'FACEBOOK_SYNC_FAILED' });
-  }
-});
-
 if (require.main === module) {
   app.listen(port, '0.0.0.0', () => {
     console.log(`Server running on port ${port}`);
