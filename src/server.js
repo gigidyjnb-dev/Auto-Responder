@@ -84,8 +84,11 @@ app.get('/', (req, res) => {
 });
 
 // Other middleware after static file serving
-app.use(cors());
-app.use(express.json());
+app.use(cors({
+  origin: ['http://localhost:3000', 'chrome-extension://*', 'http://localhost:3001'],
+  credentials: true,
+}));
+app.use(express.json({ limit: '10mb' }));
 
 const uploadDir = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(uploadDir)) {
@@ -421,6 +424,101 @@ app.post('/api/upload', upload.single('productFile'), (req, res) => {
   } catch (err) {
     return res.status(400).json({ error: err.message });
   }
+});
+
+// Sync endpoint for direct JSON listing data from scrapers/extensions
+app.post('/api/upload-sync', (req, res) => {
+  const { title, price, condition, description, images, platform, originalId, url, seller, location } = req.body;
+
+  if (!title || typeof title !== 'string') {
+    return res.status(400).json({ error: 'Title is required.' });
+  }
+
+  const now = new Date().toISOString();
+  const id = `${platform || 'sync'}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+  const profile = {
+    id,
+    title: title.substring(0, 200),
+    price: price || 'Contact for price',
+    condition: condition || 'Used - Good',
+    uploaded_at: now,
+    data_json: JSON.stringify({
+      platform: platform || 'unknown',
+      originalListingId: originalId,
+      description: description || '',
+      images: images || [],
+      url: url || '',
+      seller: seller || '',
+      location: location || '',
+      scrapedAt: now,
+      syncedVia: 'automated-sync',
+    }),
+  };
+
+  try {
+    saveProfile(profile);
+    return res.json({ ok: true, id, profile: { id, title: profile.title } });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/upload-sync/bulk', (req, res) => {
+  const { listings, platform } = req.body;
+
+  if (!Array.isArray(listings)) {
+    return res.status(400).json({ error: 'listings must be an array' });
+  }
+
+  const results = [];
+  const errors = [];
+
+  listings.forEach((listing, idx) => {
+    try {
+      if (!listing.title) {
+        errors.push(`Listing ${idx}: missing title`);
+        return;
+      }
+
+      const now = new Date().toISOString();
+      const id = `${platform || 'sync'}_${Date.now()}_${idx}_${Math.random().toString(36).substr(2, 5)}`;
+
+      const profile = {
+        id,
+        title: listing.title.substring(0, 200),
+        price: listing.price || 'Contact for price',
+        condition: listing.condition || 'Used - Good',
+        uploaded_at: now,
+        data_json: JSON.stringify({
+          platform: platform || 'unknown',
+          originalListingId: listing.originalId || listing.id || null,
+          description: listing.description || '',
+          images: listing.images || [],
+          url: listing.url || '',
+          seller: listing.seller || '',
+          location: listing.location || '',
+          scrapedAt: now,
+          raw: listing.raw || {},
+          syncedVia: 'automated-sync-bulk',
+        }),
+      };
+
+      saveProfile(profile);
+      results.push({ id, title: profile.title });
+    } catch (err) {
+      errors.push(`Listing ${idx}: ${err.message}`);
+    }
+  });
+
+  return res.json({
+    ok: true,
+    total: listings.length,
+    synced: results.length,
+    failed: errors.length,
+    results,
+    errors: errors.length > 0 ? errors : undefined
+  });
 });
 
 app.post('/api/generate', async (req, res) => {

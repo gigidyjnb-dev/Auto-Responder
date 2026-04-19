@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Listing Sync - Extension</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800;family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="bg-shape shape-a"></div>
+  <div class="bg-shape shape-b"></div>
+
+  <nav class="topnav">
+    <a href="/">Respond</a>
+    <a href="/admin.html">Admin Queue</a>
+    <a href="/setup-status.html">Setup Status</a>
+    <a href="/extension.html" class="active">Sync Extension</a>
+  </nav>
+
+  <main class="page">
+    <header class="hero">
+      <p class="eyebrow">AUTOMATE LISTING IMPORTS</p>
+      <h1>Listings Sync Extension</h1>
+      <p class="subtitle">
+        One-click sync of all your marketplace listings. No manual copy-paste needed.
+      </p>
+    </header>
+
+    <section class="card">
+      <h2>Installation</h2>
+      <div class="stack">
+        <div class="step">
+          <div class="step-number">1</div>
+          <div class="step-content">
+            <h3>Download the Extension</h3>
+            <p>Click the button below to download the Chrome extension package (.zip).</p>
+            <a href="/extension/marketplace-sync-extension.zip" class="btn-primary" download id="dlBtn">
+              📥 Download Extension
+            </a>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-number">2</div>
+          <div class="step-content">
+            <h3>Install in Chrome</h3>
+            <ol>
+              <li>Open <code>chrome://extensions/</code> in your browser</li>
+              <li>Enable <strong>Developer mode</strong> (toggle in top right)</li>
+              <li>Drag the downloaded <code>.zip</code> file onto the extensions page</li>
+              <li>Click <strong>Add extension</strong></li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-number">3</div>
+          <div class="step-content">
+            <h3>Configure Your Server URL</h3>
+            <p>If your auto-responder is hosted on Railway or another server:</p>
+            <ul>
+              <li>Click the extension icon in Chrome's toolbar</li>
+              <li>Double-click the status message to open settings</li>
+              <li>Enter your server's full URL (e.g., <code>https://your-app.up.railway.app</code>)</li>
+              <li>If running locally, the default <code>http://localhost:3000</code> is pre-set.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-number">4</div>
+          <div class="step-content">
+            <h3>Sync Your Listings</h3>
+            <ol>
+              <li>Log into your marketplace account (Facebook, eBay, Etsy, etc.)</li>
+              <li>Navigate to "Your Listings" or "Active Listings" page</li>
+              <li>Click the extension icon → select platform → click "Sync My Listings"</li>
+              <li>Wait for confirmation. Your listings are now in your auto-responder!</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Supported Platforms</h2>
+      <div class="platform-grid">
+        <div class="platform-badge">Facebook Marketplace</div>
+        <div class="platform-badge">eBay</div>
+        <div class="platform-badge">Etsy</div>
+        <div class="platform-badge">OfferUp</div>
+        <div class="platform-badge">Mercari</div>
+        <div class="platform-badge">Poshmark</div>
+        <div class="platform-badge">Craigslist</div>
+      </div>
+      <p class="note">More platforms coming soon. Each platform must be viewed while logged in.</p>
+    </section>
+
+    <section class="card">
+      <h2>Troubleshooting</h2>
+      <details>
+        <summary>No listings found?</summary>
+        <p>Make sure you are on the <strong>"Your Listings"</strong> page for that platform (not a search page). The extension only scans the current page for listing elements.</p>
+      </details>
+      <details>
+        <summary>Extension won't install?</summary>
+        <p>Chrome requires Developer mode to be enabled for unpacked extensions. Make sure you toggled it on in <code>chrome://extensions/</code>.</p>
+      </details>
+      <details>
+        <summary>Cannot connect to server?</summary>
+        <p>The extension tries to connect to the same domain as this web app by default. If your server is on Railway, double-click the status bar in the extension popup to enter the Railway URL.</p>
+      </details>
+      <details>
+        <summary>Login required?</summary>
+        <p>You must be logged into the marketplace website in your browser before using the sync. The extension uses your existing session; it does <strong>not</strong> store or transmit your credentials.</p>
+      </details>
+    </section>
+  </main>
+
+  <style>
+    .step {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 24px;
+      align-items: flex-start;
+    }
+    .step-number {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #0066ff, #00d4ff);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+    .step-content h3 {
+      margin: 0 0 8px 0;
+      font-size: 16px;
+    }
+    .step-content p, .step-content li {
+      color: #555;
+      margin: 4px 0;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .step-content code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+    .step-content ol, .step-content ul {
+      margin: 8px 0 8px 20px;
+      padding-left: 0;
+    }
+    .btn-primary {
+      display: inline-block;
+      background: linear-gradient(135deg, #0066ff, #00d4ff);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 6px;
+      text-decoration: none;
+      font-weight: 600;
+      margin-top: 8px;
+    }
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 102, 255, 0.3);
+    }
+    .platform-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 16px;
+    }
+    .platform-badge {
+      background: #f0f4ff;
+      color: #0066ff;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .note {
+      font-size: 13px;
+      color: #888;
+      margin-top: 12px;
+    }
+  </style>
+</body>
+</html>
