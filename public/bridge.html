@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Syncing...</title>
+    <style>
+        body { font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f0f7ff; color: #0066ff; }
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #0066ff; border-radius: 50%; width: 30px; height: 30px; animation: spin 2s linear infinite; margin-right: 15px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="loader"></div>
+    <div id="status">Syncing listings...</div>
+
+    <script>
+        // Tell the Facebook page we are ready to receive data
+        if (window.opener) {
+            window.opener.postMessage('bridge_ready', '*');
+        } else {
+            document.getElementById('status').innerText = 'Error: No parent window found.';
+        }
+
+        window.addEventListener('message', async (event) => {
+            // We only care about SYNC_LISTINGS messages
+            if (event.data && event.data.type === 'SYNC_LISTINGS') {
+                const { pageText, links, images } = event.data.payload;
+                
+                document.getElementById('status').innerText = 'Saving to database...';
+
+                try {
+                    const res = await fetch('/api/listings/parse-page', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ pageText, links, images })
+                    });
+                    
+                    const data = await res.json();
+                    if (res.ok) {
+                        document.getElementById('status').innerText = '✅ Success! Imported ' + data.count + ' items.';
+                        // Redirect or close after success
+                        setTimeout(() => {
+                            window.location.href = '/setup-status.html?count=' + data.count;
+                        }, 1000);
+                    } else {
+                        throw new Error(data.error || 'Unknown error');
+                    }
+                } catch (err) {
+                    document.getElementById('status').innerText = '❌ Error: ' + err.message;
+                    document.body.style.color = '#dc3545';
+                }
+            }
+        });
+    </script>
+</body>
+</html>

@@ -940,8 +940,19 @@ app.get('/api/stats', (req, res) => {
 });
 
 app.post('/api/listings/parse-page', setupLimiter, async (req, res) => {
-  const { pageText, links, images } = req.body || {};
+  // Handle both standard JSON and Form POST (bookmarklet bypass)
+  let { pageText, links, images } = req.body || {};
+  const isRedirect = req.query.redirect === 'true';
+
+  if (typeof links === 'string' && links.startsWith('[')) {
+    try { links = JSON.parse(links); } catch { links = []; }
+  }
+  if (typeof images === 'string' && images.startsWith('[')) {
+    try { images = JSON.parse(images); } catch { images = []; }
+  }
+
   if (!pageText || pageText.trim().length < 10) {
+    if (isRedirect) return res.redirect('/setup-status.html?error=no_text');
     return res.status(400).json({ error: 'No page text provided.' });
   }
 
@@ -958,17 +969,19 @@ app.post('/api/listings/parse-page', setupLimiter, async (req, res) => {
         model: process.env.MODEL_NAME || 'gpt-4o-mini',
         messages: [{
           role: 'system',
-          content: 'You are a professional marketplace data extractor. Extract product listings from the provided text. Return ONLY a JSON array.'
+          content: 'You are a professional marketplace data extractor. Extract active product listings from the provided text. Return ONLY a JSON array.'
         }, {
           role: 'user',
-          content: `Extract all active marketplace listings from this text. 
+          content: `The following text is a raw copy-paste from a Facebook Marketplace "Your Listings" page. 
+          Extract every active item you find. Skip items marked as "Sold" or "Delisted".
+          
           Return ONLY a JSON array of objects. 
           Each object MUST have:
           - "title": (string) The product name.
-          - "price": (string) The price including currency symbol (e.g. "$150").
-          - "status": (string) "Active" or "Sold" or "Pending". Only include "Active" items if possible.
+          - "price": (string) The price (e.g. "$150"). If unknown, use "".
+          - "status": (string) "Active", "Sold", or "Pending".
 
-          Page text:
+          Raw text:
           ${text}
 
           JSON Output Format:
@@ -997,6 +1010,9 @@ app.post('/api/listings/parse-page', setupLimiter, async (req, res) => {
       
       if (isTitle && priceMatch) {
         listings.push({ title: line, price: priceMatch[0] });
+      } else if (isTitle && line.length > 5 && listings.length < 50) {
+        // High-effort fallback for titles even if price is missing in raw text
+        listings.push({ title: line, price: '' });
       }
     }
   }
@@ -1030,6 +1046,9 @@ app.post('/api/listings/parse-page', setupLimiter, async (req, res) => {
     }
   }
 
+  if (isRedirect) {
+    return res.redirect(`/setup-status.html?count=${saved}`);
+  }
   return res.json({ ok: true, count: saved, parsed: listings.length });
 });
 if (require.main === module) {

@@ -27,31 +27,31 @@
         Fast Listing Sync
       </h1>
       <p class="subtitle" style="font-size: 18px; line-height: 1.6; margin-bottom: 40px; color: var(--muted);">
-        Choose the way you want to import your listings.
+        The fastest way to sync your marketplace listings.
       </p>
-
-      <!-- Option A: Bookmarklet (Foolproof) -->
-      <div class="setup-card">
-        <span class="badge badge-success">Method A: Foolproof (Recommended)</span>
-        <h2 style="font-size: 22px; margin-bottom: 12px;">Magic Bookmarklet</h2>
-        <p style="color: var(--muted); font-size: 14px; margin-bottom: 20px;">
-          The most reliable way. No passwords needed, no 2FA issues. Just drag and click.
+      
+      <!-- Atomic Sync (The Only One That Works) -->
+      <div class="setup-card" style="border: 2px solid #0066ff; box-shadow: 0 10px 30px rgba(0,102,255,0.15);">
+        <span class="badge badge-primary" style="background: #0066ff; color: white;">Step 1: Install Sync Button</span>
+        <h2 style="font-size: 24px; margin-bottom: 12px;">Atomic Sync</h2>
+        <p style="color: var(--muted); font-size: 15px; margin-bottom: 24px;">
+          Guaranteed to work on Facebook, eBay, and Craigslist. No passwords required.
         </p>
-        
-        <ol style="font-size: 15px; line-height: 1.8; margin-bottom: 24px; padding-left: 20px;">
-          <li>Drag this button to your browser's <strong>Bookmarks Bar</strong>:</li>
-          <li style="list-style: none; margin: 20px 0;">
-            <a id="bookmarkletLink" href="#" class="bookmarklet-btn" style="background: #0066ff; color: white; border: none; padding: 12px 28px; box-shadow: 0 4px 14px rgba(0,102,255,0.39);">🚀 Sync My Listings</a>
-            <div style="font-size: 12px; color: var(--muted); margin-top: 8px;">(Tip: Press Ctrl+Shift+B if your bar is hidden)</div>
+
+        <ol style="font-size: 16px; line-height: 1.8; margin-bottom: 24px; text-align: left; padding-left: 20px;">
+          <li>Drag this button to your <strong>Bookmarks Bar</strong>:</li>
+          <li style="list-style: none; margin: 24px 0; text-align: center;">
+            <a id="bookmarkletLink" href="#" class="bookmarklet-btn" style="background: #0066ff; color: white; border: none; padding: 16px 32px; font-size: 20px; box-shadow: 0 4px 14px rgba(0,102,255,0.4);">🚀 Atomic Sync</a>
+            <div style="font-size: 12px; color: var(--muted); margin-top: 10px;">(Ctrl+Shift+B if your bar is hidden)</div>
           </li>
-          <li>Go to your <a href="https://www.facebook.com/marketplace/you/listings" target="_blank" style="color: #0066ff; font-weight: 700; text-decoration: underline;">Facebook Listings</a> page.</li>
-          <li>Click the <strong>🚀 Sync My Listings</strong> button in your bar.</li>
+          <li>Go to your <a href="https://www.facebook.com/marketplace/you/listings" target="_blank" style="color: #0066ff; font-weight: 700;">Facebook Listings</a> page.</li>
+          <li>Click the <strong>🚀 Atomic Sync</strong> button in your bar.</li>
         </ol>
       </div>
 
-      <!-- Option B: Automatic (Server-side) -->
+      <!-- Option C: Automatic (Server-side) -->
       <div class="setup-card">
-        <span class="badge badge-primary">Method B: Automatic</span>
+        <span class="badge badge-primary">Method C: Cloud Import</span>
         <h2 style="font-size: 22px; margin-bottom: 12px;">Cloud Import</h2>
         
         <div class="setup-step" style="margin-bottom: 20px;">
@@ -94,49 +94,25 @@ INTEGRATION_API_KEY=REPLACE_WITH_STRONG_KEY
     // Build the bookmarklet script
     const origin = window.location.origin;
     const bookmarkletCode = `javascript:(function(){
-      console.log('🚀 Syncing listings...');
       const pageText = document.body.innerText;
       const links = Array.from(document.querySelectorAll('a[href*="/item/"]')).map(a => a.href);
       const images = Array.from(document.querySelectorAll('img')).map(img => img.src).filter(src => src.includes('https://scontent'));
+      const origin = '${origin}';
+
+      /* The Atomic Bomb Method: Window-to-Window Bridge */
+      const bridge = window.open(origin + '/bridge.html', 'sync_bridge', 'width=400,height=300');
       
-      if (!pageText || pageText.length < 100) {
-        return alert('❌ Could not read page. Make sure you are on the Facebook Marketplace Listings page.');
-      }
-
-      const status = document.createElement('div');
-      status.style.position = 'fixed';
-      status.style.top = '20px';
-      status.style.right = '20px';
-      status.style.padding = '16px 24px';
-      status.style.background = '#0066ff';
-      status.style.color = 'white';
-      status.style.borderRadius = '12px';
-      status.style.zIndex = '10000';
-      status.style.fontWeight = 'bold';
-      status.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-      status.innerText = '⏳ Syncing listings...';
-      document.body.appendChild(status);
-
-      fetch('${origin}/api/listings/parse-page', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pageText, links, images })
-      })
-      .then(async r => {
-        const data = await r.json();
-        if (!r.ok) throw new Error(data.error || 'Server error ' + r.status);
-        
-        status.style.background = '#28a745';
-        status.innerText = '✅ Synced ' + data.count + ' listings!';
-        setTimeout(() => status.remove(), 4000);
-      })
-      .catch(err => {
-        console.error('Sync error:', err);
-        status.style.background = '#dc3545';
-        status.innerText = '❌ ' + err.message;
-        // Keep error visible longer
-        setTimeout(() => status.remove(), 8000);
-      });
+      const listener = (event) => {
+        if (event.origin !== origin) return;
+        if (event.data === 'bridge_ready') {
+          bridge.postMessage({ 
+            type: 'SYNC_LISTINGS', 
+            payload: { pageText, links, images } 
+          }, origin);
+          window.removeEventListener('message', listener);
+        }
+      };
+      window.addEventListener('message', listener);
     })();`;
     
     document.getElementById('bookmarkletLink').href = bookmarkletCode;

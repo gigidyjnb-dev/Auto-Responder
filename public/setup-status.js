@@ -23,6 +23,30 @@ function badgeLabel(status) {
 }
 
 async function loadStatus() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const count = urlParams.get('count');
+  const error = urlParams.get('error');
+
+  if (count !== null || error) {
+    const banner = document.createElement('div');
+    banner.style.padding = '20px';
+    banner.style.borderRadius = '16px';
+    banner.style.marginBottom = '24px';
+    banner.style.textAlign = 'center';
+    banner.style.fontWeight = '700';
+    
+    if (error) {
+      banner.style.background = '#fee2e2';
+      banner.style.color = '#9b1c1c';
+      banner.innerText = '❌ Import Failed: ' + (error === 'no_text' ? 'Could not read listings text.' : error);
+    } else {
+      banner.style.background = '#d1faeb';
+      banner.style.color = '#076644';
+      banner.innerText = `🎉 Successfully imported ${count} listings from Facebook!`;
+    }
+    document.querySelector('.hero').after(banner);
+  }
+
   let product = null;
   let platforms = [];
 
