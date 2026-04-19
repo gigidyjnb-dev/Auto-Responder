@@ -945,6 +945,8 @@ app.post('/api/listings/parse-page', setupLimiter, async (req, res) => {
   let { pageText, links, images } = req.body || {};
   const isRedirect = req.query.redirect === 'true';
 
+  console.log(`[Sync] Received request. Text length: ${pageText?.length || 0}, Links: ${links?.length || 0}`);
+
   if (typeof links === 'string' && links.startsWith('[')) {
     try { links = JSON.parse(links); } catch { links = []; }
   }
@@ -953,6 +955,7 @@ app.post('/api/listings/parse-page', setupLimiter, async (req, res) => {
   }
 
   if (!pageText || pageText.trim().length < 10) {
+    console.warn('[Sync] No page text provided or text too short.');
     if (isRedirect) return res.redirect('/setup-status.html?error=no_text');
     return res.status(400).json({ error: 'No page text provided.' });
   }
@@ -964,6 +967,7 @@ app.post('/api/listings/parse-page', setupLimiter, async (req, res) => {
   const apiKey = process.env.OPENAI_API_KEY;
   if (apiKey) {
     try {
+      console.log('[Sync] Using AI to extract listings...');
       const { OpenAI } = require('openai');
       const client = new OpenAI({ apiKey });
       const resp = await client.chat.completions.create({
@@ -993,6 +997,7 @@ app.post('/api/listings/parse-page', setupLimiter, async (req, res) => {
       });
       const raw = resp.choices[0].message.content.trim().replace(/^```json|^```|```$/gm, '');
       listings = JSON.parse(raw).filter(item => item.status !== 'Sold');
+      console.log(`[Sync] AI found ${listings.length} listings.`);
     } catch (err) {
       console.error('AI parse error:', err.message);
     }
@@ -1000,6 +1005,7 @@ app.post('/api/listings/parse-page', setupLimiter, async (req, res) => {
 
   // Fallback simple regex if AI fails or no API key
   if (!listings.length) {
+    console.log('[Sync] Running fallback regex parser...');
     const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
@@ -1016,6 +1022,7 @@ app.post('/api/listings/parse-page', setupLimiter, async (req, res) => {
         listings.push({ title: line, price: '' });
       }
     }
+    console.log(`[Sync] Regex found ${listings.length} listings.`);
   }
 
   const linkMap = Array.isArray(links) ? links : [];
@@ -1046,6 +1053,8 @@ app.post('/api/listings/parse-page', setupLimiter, async (req, res) => {
       console.error('Save error:', e.message);
     }
   }
+
+  console.log(`[Sync] Finished. Saved ${saved} total profiles.`);
 
   if (isRedirect) {
     return res.redirect(`/setup-status.html?count=${saved}`);
