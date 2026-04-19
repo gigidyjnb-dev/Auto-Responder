@@ -792,6 +792,48 @@ app.post('/api/outbound', integrationLimiter, (req, res) => {
 // One-Click Setup: Save credentials & sync
 // ============================================
 
+app.post('/api/listings/bulk', setupLimiter, (req, res) => {
+  const listings = Array.isArray(req.body?.listings) ? req.body.listings : [];
+  const platform = req.body?.platform || 'facebook_marketplace';
+
+  if (listings.length === 0) {
+    return res.status(400).json({ error: 'No listings provided.' });
+  }
+
+  let saved = 0;
+  const now = new Date().toISOString();
+
+  for (const listing of listings) {
+    try {
+      if (!listing.title) continue;
+
+      const id = `bulk_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+      const profile = {
+        id,
+        title: listing.title.substring(0, 200),
+        price: listing.price || 'Contact for price',
+        condition: listing.condition || 'Used',
+        uploaded_at: now,
+        data_json: JSON.stringify({
+          platform,
+          description: listing.description || '',
+          images: listing.images || [],
+          url: listing.url || '',
+          syncedAt: now,
+          source: 'bookmarklet',
+        }),
+      };
+
+      saveProfile(profile);
+      saved++;
+    } catch (err) {
+      console.error('Error saving bulk listing:', err.message);
+    }
+  }
+
+  return res.json({ ok: true, count: saved });
+});
+
 app.post('/api/credentials/facebook', setupLimiter, requireSetupAccess, (req, res) => {
   const keyIssue = getCredentialKeyErrorResponse();
   if (keyIssue) {

@@ -8,185 +8,154 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/styles.css" />
+  <style>
+    .setup-card { background: white; border-radius: 16px; border: 1px solid var(--line); padding: 32px; margin-bottom: 24px; text-align: left; box-shadow: 0 4px 24px rgba(0,0,0,0.04); }
+    .badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; text-transform: uppercase; margin-bottom: 12px; }
+    .badge-primary { background: #e6f0ff; color: #0066ff; }
+    .badge-success { background: #e6ffed; color: #28a745; }
+    .bookmarklet-btn { display: inline-block; background: #333; color: white; padding: 10px 20px; border-radius: 8px; font-weight: 700; text-decoration: none; cursor: move; border: 2px dashed #666; }
+    .code-block { background: #f8f9fa; padding: 16px; border-radius: 8px; font-family: monospace; font-size: 13px; overflow-x: auto; border: 1px solid #eee; margin: 12px 0; }
+  </style>
 </head>
 <body>
   <div class="bg-shape shape-a"></div>
   <div class="bg-shape shape-b"></div>
 
-  <main class="page" style="max-width: 600px; text-align: center;">
+  <main class="page" style="max-width: 700px; text-align: center;">
     <div style="padding: 60px 20px;">
       <h1 style="font-size: 42px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 16px;">
-        Two-Minute Setup
+        Fast Listing Sync
       </h1>
       <p class="subtitle" style="font-size: 18px; line-height: 1.6; margin-bottom: 40px; color: var(--muted);">
-        Connect your Facebook Marketplace account and we'll import all your listings automatically.
-        <br><br>
-        <strong>No extension.</strong><br>
-        <strong>No manual uploading.</strong><br>
-        <strong>Just click once.</strong>
+        Choose the way you want to import your listings.
       </p>
 
-      <!-- Step 1 -->
-      <div class="setup-step" style="text-align: left; margin-bottom: 32px;">
-        <div class="step-header">
-          <span class="step-num">1</span>
-          <span class="step-title">Enter your Facebook email</span>
-        </div>
-        <input type="email" id="email" placeholder="your@email.com" style="width: 100%; padding: 14px 16px; border: 2px solid var(--line); border-radius: 12px; font-size: 16px; margin-top: 8px;" />
-      </div>
-
-      <!-- Step 2 -->
-      <div class="setup-step" style="text-align: left; margin-bottom: 32px;">
-        <div class="step-header">
-          <span class="step-num">2</span>
-          <span class="step-title">Enter your Facebook password</span>
-        </div>
-        <input type="password" id="password" placeholder="Your Facebook password" style="width: 100%; padding: 14px 16px; border: 2px solid var(--line); border-radius: 12px; font-size: 16px; margin-top: 8px;" />
-        <p style="font-size: 12px; color: #888; margin-top: 8px;">
-          🔒 Your credentials are encrypted and stored securely. We only use them to fetch your listings.
+      <!-- Option A: Bookmarklet (Foolproof) -->
+      <div class="setup-card">
+        <span class="badge badge-success">Method A: Foolproof (Recommended)</span>
+        <h2 style="font-size: 22px; margin-bottom: 12px;">Magic Bookmarklet</h2>
+        <p style="color: var(--muted); font-size: 14px; margin-bottom: 20px;">
+          The most reliable way. No passwords needed, no 2FA issues. Just drag and click.
         </p>
+        
+        <ol style="font-size: 14px; line-height: 1.8; margin-bottom: 24px; padding-left: 20px;">
+          <li>Drag this button to your browser's <strong>Bookmarks Bar</strong>:</li>
+          <li style="list-style: none; margin: 16px 0;">
+            <a id="bookmarkletLink" href="#" class="bookmarklet-btn">🚀 Sync My Listings</a>
+          </li>
+          <li>Go to your <a href="https://www.facebook.com/marketplace/you/listings" target="_blank" style="color: #0066ff; font-weight: 600;">Facebook Marketplace Listings</a> page.</li>
+          <li>Click the <strong>🚀 Sync My Listings</strong> bookmark in your bar.</li>
+        </ol>
       </div>
 
-      <!-- Step 3 -->
-      <div class="setup-step" style="text-align: left; margin-bottom: 40px;">
-        <div class="step-header">
-          <span class="step-num">3</span>
-          <span class="step-title">Click the button</span>
+      <!-- Option B: Automatic (Server-side) -->
+      <div class="setup-card">
+        <span class="badge badge-primary">Method B: Automatic</span>
+        <h2 style="font-size: 22px; margin-bottom: 12px;">Cloud Import</h2>
+        
+        <div class="setup-step" style="margin-bottom: 20px;">
+          <input type="email" id="email" placeholder="Facebook Email" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 12px;" />
+          <input type="password" id="password" placeholder="Facebook Password" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;" />
         </div>
-        <p style="color: var(--muted); font-size: 14px; margin-top: 8px;">
-          We'll log into Facebook, grab all your active listings, and import them here. Takes ~10 seconds.
+
+        <button id="connectBtn" style="width: 100%; padding: 16px; background: #0066ff; color: white; border: none; border-radius: 12px; font-weight: 700; cursor: pointer;">
+          Start Cloud Sync
+        </button>
+      </div>
+
+      <!-- Railway Helper -->
+      <div class="setup-card" style="background: #fff9e6; border-color: #ffeeba;">
+        <h3 style="font-size: 18px; color: #856404; margin-bottom: 12px;">Railway Deployment Helper</h3>
+        <p style="font-size: 13px; color: #856404; margin-bottom: 12px;">
+          If you just redeployed, make sure these variables are set in your Railway Dashboard:
         </p>
-      </div>
-
-      <button id="connectBtn" style="
-        width: 100%;
-        padding: 18px 24px;
-        font-size: 18px;
-        font-weight: 700;
-        background: linear-gradient(135deg, #0066ff, #00d4ff);
-        color: white;
-        border: none;
-        border-radius: 12px;
-        cursor: pointer;
-        transition: transform 120ms, box-shadow 120ms;
-        margin-bottom: 20px;
-      " onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
-        🚀 Connect & Import My Listings
-      </button>
-
-      <div id="status" style="
-        padding: 12px 16px;
-        border-radius: 8px;
-        margin-top: 16px;
-        font-size: 14px;
-        display: none;
-      "></div>
-
-      <div id="progress" style="margin-top: 20px; display: none;">
-        <div style="height: 4px; background: #e0e0e0; border-radius: 2px; overflow: hidden;">
-          <div id="progressBar" style="height: 100%; background: #0066ff; width: 0%; transition: width 0.5s;"></div>
+        <div class="code-block" style="background: rgba(255,255,255,0.5);">
+ADMIN_PASSWORD=REPLACE_WITH_8_CHAR_PWD
+ADMIN_SESSION_SECRET=REPLACE_WITH_RANDOM_SECRET
+CRED_ENCRYPTION_KEY=REPLACE_WITH_64_HEX_CHARS
+INTEGRATION_API_KEY=REPLACE_WITH_STRONG_KEY
         </div>
-        <p id="progressText" style="font-size: 13px; color: var(--muted); margin-top: 8px;">Connecting...</p>
       </div>
 
+      <div id="status" style="padding: 16px; border-radius: 12px; margin-top: 24px; display: none; font-weight: 600;"></div>
+      
       <div id="result" style="display: none; margin-top: 24px;">
-        <div style="background: #d4edda; color: #155724; padding: 16px; border-radius: 12px; font-weight: 600;">
-          ✅ Setup complete! <span id="count"></span> listings imported.
+        <div style="background: #e6ffed; color: #155724; padding: 20px; border-radius: 16px; border: 1px solid #c3e6cb;">
+          <h3 style="margin-bottom: 8px;">🎉 Sync Successful!</h3>
+          <p style="font-size: 14px;">Imported <span id="count" style="font-weight: 800;"></span> listings. You're ready to go.</p>
+          <a href="/app.html" class="btn" style="display: inline-block; margin-top: 16px; background: #28a745; color: white; padding: 10px 24px; border-radius: 8px; text-decoration: none; font-weight: 700;">Open Dashboard</a>
         </div>
-        <p style="margin-top: 12px; color: var(--muted);">
-          You can now <a href="/app.html" style="color: #0066ff;">generate responses</a> for your buyers.
-        </p>
-      </div>
-
-      <div id="error" style="display: none; margin-top: 16px;">
-        <div style="background: #f8d7da; color: #721c24; padding: 16px; border-radius: 12px;">
-          <strong>Oops:</strong> <span id="errorMsg"></span>
-        </div>
-        <p style="font-size: 13px; color: #666; margin-top: 8px;">
-          Common issues:<br>
-          • Wrong email/password<br>
-          • Two-factor authentication enabled on your account<br>
-          • Facebook security check required (check your email/phone)
-        </p>
       </div>
     </div>
   </main>
 
   <script>
+    // Build the bookmarklet script
+    const origin = window.location.origin;
+    const bookmarkletCode = `javascript:(function(){
+      console.log('🚀 Syncing listings to ${origin}...');
+      const listings = [];
+      const cards = document.querySelectorAll('[data-testid="marketplace_listing_item"], a[href*="/marketplace/item/"]');
+      
+      cards.forEach(card => {
+        const title = card.querySelector('[data-testid="marketplace_listing_title"], span[dir="auto"]')?.textContent?.trim();
+        const price = card.querySelector('[data-testid="marketplace_listing_price"]')?.textContent?.trim();
+        const link = card.closest('a')?.href || card.href;
+        const img = card.querySelector('img')?.src;
+        if (title && price) listings.push({ title, price, url: link, images: img ? [img] : [] });
+      });
+
+      if (listings.length === 0) return alert('No listings found. Make sure you are on the "Your Listings" page.');
+
+      fetch('${origin}/api/listings/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ listings })
+      })
+      .then(r => r.json())
+      .then(data => alert('✅ Successfully synced ' + data.count + ' listings to your responder!'))
+      .catch(err => alert('❌ Sync failed: ' + err.message));
+    })();`;
+    
+    document.getElementById('bookmarkletLink').href = bookmarkletCode;
+
+    // Cloud Sync Logic
     document.getElementById('connectBtn').addEventListener('click', async () => {
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
-
-      if (!email || !password) {
-        alert('Please enter both email and password.');
-        return;
-      }
-
-      const btn = document.getElementById('connectBtn');
       const status = document.getElementById('status');
-      const progress = document.getElementById('progress');
-      const progressBar = document.getElementById('progressBar');
-      const progressText = document.getElementById('progressText');
       const result = document.getElementById('result');
-      const error = document.getElementById('error');
-      const errorMsg = document.getElementById('errorMsg');
+      const btn = document.getElementById('connectBtn');
+
+      if (!email || !password) return alert('Enter credentials');
 
       btn.disabled = true;
-      btn.textContent = '⏳ Connecting...';
+      btn.textContent = '⏳ Syncing... (Takes ~20s)';
       status.style.display = 'block';
-      status.className = 'status info';
-      status.textContent = 'Starting connection...';
-      progress.style.display = 'block';
-      result.style.display = 'none';
-      error.style.display = 'none';
+      status.style.background = '#e6f0ff';
+      status.style.color = '#0066ff';
+      status.textContent = 'Connecting to Facebook Cloud...';
 
       try {
-        // Step 1: Save credentials
-        progressBar.style.width = '20%';
-        progressText.textContent = 'Saving credentials securely...';
-
-        const saveRes = await fetch('/api/credentials/facebook', {
+        await fetch('/api/credentials/facebook', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password })
         });
 
-        if (!saveRes.ok) throw new Error('Failed to save credentials');
-
-        // Step 2: Trigger sync
-        progressBar.style.width = '40%';
-        progressText.textContent = 'Logging into Facebook...';
-
         const syncRes = await fetch('/api/sync/facebook', { method: 'POST' });
         const data = await syncRes.json();
+        if (!syncRes.ok) throw new Error(data.error || 'Sync failed');
 
-        if (!syncRes.ok) {
-          if (data.error?.includes('2FA')) {
-            throw new Error('Facebook requires two-factor authentication. Please complete 2FA in your browser, then try again.');
-          }
-          throw new Error(data.error || 'Sync failed');
-        }
-
-        progressBar.style.width = '100%';
-        progressText.textContent = 'Importing listings...';
-
-        // Show result after brief delay
-        setTimeout(() => {
-          progress.style.display = 'none';
-          status.style.display = 'none';
-          result.style.display = 'block';
-          document.getElementById('count').textContent = data.count || data.listings?.length || 'multiple';
-          btn.style.display = 'none';
-        }, 800);
-
-      } catch (err) {
-        console.error(err);
         status.style.display = 'none';
-        progress.style.display = 'none';
-        error.style.display = 'block';
-        errorMsg.textContent = err.message;
+        result.style.display = 'block';
+        document.getElementById('count').textContent = data.count;
+      } catch (err) {
+        status.style.background = '#f8d7da';
+        status.style.color = '#721c24';
+        status.textContent = 'Error: ' + err.message;
         btn.disabled = false;
-        btn.textContent = '🚀 Connect & Import My Listings';
+        btn.textContent = 'Retry Cloud Sync';
       }
     });
   </script>
