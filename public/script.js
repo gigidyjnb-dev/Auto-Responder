@@ -5,6 +5,7 @@ let activeListingId = null;
 const listingSelect    = document.getElementById('listingSelect');
 const loadListingBtn   = document.getElementById('loadListingBtn');
 const deleteListingBtn = document.getElementById('deleteListingBtn');
+const deleteAllBtn    = document.getElementById('deleteAllBtn');
 const listingStatus    = document.getElementById('listingStatus');
 
 const uploadForm    = document.getElementById('uploadForm');
@@ -126,6 +127,31 @@ deleteListingBtn.addEventListener('click', async () => {
 
     setStatus(listingStatus, 'Listing deleted.');
     await loadListings();
+  } catch {
+    setStatus(listingStatus, 'Delete failed.', true);
+  }
+});
+
+deleteAllBtn.addEventListener('click', async () => {
+  if (!confirm('⚠️ Delete ALL listings? This cannot be undone. Are you sure?')) return;
+  if (!confirm('Really delete EVERYTHING? All listings will be gone forever.')) return;
+  
+  setStatus(listingStatus, 'Deleting all listings...');
+  
+  try {
+    const res = await fetch('/api/products');
+    const data = await res.json();
+    const listings = data.listings || [];
+    
+    for (const listing of listings) {
+      await fetch(`/api/product/${listing.id}`, { method: 'DELETE' });
+    }
+    
+    setActiveListing(null, null);
+    productSummary.classList.add('hidden');
+    setStatus(listingStatus, 'All listings deleted.');
+    await loadListings();
+    await loadStats();
   } catch {
     setStatus(listingStatus, 'Delete failed.', true);
   }
