@@ -227,6 +227,11 @@ async function navigateToListings(page, platform) {
   }
 }
 
+function normalizeScraperPlatform(platform) {
+  if (platform === 'facebook') return 'facebook_marketplace';
+  return platform;
+}
+
 async function scrapeListings(page, platform) {
   // Scroll to load all listings
   let lastHeight = 0;
@@ -247,6 +252,8 @@ async function scrapeListings(page, platform) {
   }
 
   // Extract listings via DOM
+  const scraperPlatform = normalizeScraperPlatform(platform);
+
   return await page.evaluate((p) => {
     const scrapers = {
       facebook_marketplace: () => {
@@ -257,7 +264,7 @@ async function scrapeListings(page, platform) {
                      || el.querySelector('span[dir="auto"]')?.textContent?.trim()
                      || 'Untitled';
           const price = el.querySelector('[data-testid="marketplace_listing_price"]')?.textContent?.trim()
-                     || el.querySelector('span:has-text("$")')?.textContent?.trim()
+                     || Array.from(el.querySelectorAll('span')).map((s) => s.textContent?.trim() || '').find((txt) => /^\$\d/.test(txt))
                      || '';
           const img = el.querySelector('img');
           const images = img ? [img.src] : [];
@@ -305,50 +312,47 @@ async function scrapeListings(page, platform) {
 
     const scraper = scrapers[p] || scrapers.default;
     return scraper();
-  }, platform);
+  }, scraperPlatform);
 }
 
 async function uploadListings(listings, platform, serverUrl) {
-  let success = 0;
+  const now = new Date().toISOString();
+  const payload = listings.map((listing) => ({
+    title: String(listing.title || '').substring(0, 100),
+    price: listing.price || '',
+    condition: listing.condition || 'Used - Good',
+    description: listing.description || '',
+    images: Array.isArray(listing.images) ? listing.images : [],
+    url: listing.url || '',
+    seller: listing.seller || '',
+    location: listing.location || '',
+    originalId: listing.originalId || null,
+    scrapedAt: now,
+    raw: listing,
+  })).filter((listing) => listing.title);
 
-  for (const listing of listings) {
-    const profile = {
-      id: `${platform}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      title: listing.title.substring(0, 100),
-      price: listing.price,
-      condition: 'Used - Good',
-      uploaded_at: new Date().toISOString(),
-      data_json: JSON.stringify({
-        platform,
-        description: '',
-        images: listing.images || [],
-        url: listing.url,
-        seller: '',
-        location: '',
-        scrapedAt: new Date().toISOString(),
-        raw: listing
-      })
-    };
+  try {
+    const response = await fetch(`${serverUrl}/api/upload-sync/bulk`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ listings: payload, platform: normalizeScraperPlatform(platform) })
+    });
 
-    try {
-      const response = await fetch(`${serverUrl}/api/upload`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(profile)
-      });
-
-      if (response.ok) {
-        success++;
-        console.log(`  ✓ ${profile.title.substring(0, 50)}...`);
-      } else {
-        console.log(`  ✗ ${profile.title.substring(0, 50)}... (${response.status})`);
-      }
-    } catch (err) {
-      console.log(`  ✗ Error uploading: ${err.message}`);
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(result.error || `Upload failed (${response.status})`);
     }
-  }
 
-  return success;
+    const synced = Number(result.synced || result.count || 0);
+    console.log(`  ✓ Uploaded ${synced}/${payload.length} listing(s)`);
+    if (Array.isArray(result.errors) && result.errors.length) {
+      result.errors.slice(0, 5).forEach((err) => console.log(`  ✗ ${err}`));
+    }
+    return synced;
+  } catch (err) {
+    console.log(`  ✗ Error uploading: ${err.message}`);
+    return 0;
+  }
 }
 
 main().catch(console.error);

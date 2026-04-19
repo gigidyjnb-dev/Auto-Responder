@@ -166,7 +166,15 @@ async function scrapeCurrentPage(platform) {
 
   const listings = results[0]?.result;
   if (!Array.isArray(listings)) throw new Error('Scraper returned no data. Try refreshing the page.');
-  return listings;
+
+  const normalized = listings
+    .map((listing) => ({
+      ...listing,
+      title: String(listing?.title ?? listing?.name ?? '').trim(),
+    }))
+    .filter((listing) => listing.title.length > 0);
+
+  return normalized;
 }
 
 $('syncBtn').addEventListener('click', async () => {
@@ -199,7 +207,12 @@ $('syncBtn').addEventListener('click', async () => {
     const result = await resp.json().catch(() => ({}));
     if (!resp.ok) throw new Error(result.error || `Server error ${resp.status}`);
 
-    const count = result.count || result.synced || listings.length;
+    const count = Number(result.synced ?? result.count ?? 0);
+    if (count <= 0) {
+      const firstError = Array.isArray(result.errors) && result.errors.length ? ` (${result.errors[0]})` : '';
+      throw new Error(`Sync completed but 0 listings were saved${firstError}`);
+    }
+
     setStatus('syncStatus', `✅ Synced ${count} listing(s)!`, 'success');
     $('listingCount').textContent = `${count} listings on server`;
 

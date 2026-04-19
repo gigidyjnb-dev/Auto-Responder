@@ -122,9 +122,24 @@ function deleteProfile(id) {
   return result.changes > 0;
 }
 
+function findExistingProfileId({ title, url }) {
+  if (url) {
+    // Check by URL in JSON data
+    const row = db.prepare('SELECT id FROM listings WHERE json_extract(data_json, "$.url") = ?').get(url);
+    if (row) return row.id;
+  }
+  if (title) {
+    // Check by exact title
+    const row = db.prepare('SELECT id FROM listings WHERE title = ?').get(title);
+    if (row) return row.id;
+  }
+  return null;
+}
+
 module.exports = {
   saveProfile,
   loadProfile,
   listProfiles,
   deleteProfile,
+  findExistingProfileId,
 };

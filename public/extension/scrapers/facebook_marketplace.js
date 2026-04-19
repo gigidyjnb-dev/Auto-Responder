@@ -34,7 +34,7 @@
                  || 'Untitled';
 
         const priceText = item.querySelector('[data-testid="marketplace_listing_price"]')?.textContent?.trim()
-                      || item.querySelector('span:has-text("$")')?.textContent?.trim()
+                      || Array.from(item.querySelectorAll('span')).map((s) => s.textContent?.trim() || '').find((txt) => /^\$\d/.test(txt))
                       || '';
 
         const img = item.querySelector('img');

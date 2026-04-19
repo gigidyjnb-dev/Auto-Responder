@@ -109,6 +109,12 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use((req, res, next) => {
+  const requestId = req.header('x-request-id') || crypto.randomUUID();
+  req.requestId = requestId;
+  res.setHeader('x-request-id', requestId);
+  next();
+});
 
 const uploadDir = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(uploadDir)) {
@@ -155,6 +161,115 @@ const setupLimiter = rateLimit({
   keyGenerator: (req) => `${req.ip}:${req.path}`,
   message: { error: 'Too many setup attempts. Please wait and try again.', code: 'SETUP_RATE_LIMITED' },
 });
+
+const MAX_SYNC_LISTINGS = Number(process.env.MAX_SYNC_LISTINGS || 250);
+const SYNC_METRICS_WINDOW_MS = Number(process.env.SYNC_METRICS_WINDOW_MS || 60 * 60 * 1000);
+const SYNC_METRICS_BUCKET_MS = Number(process.env.SYNC_METRICS_BUCKET_MS || 60 * 1000);
+const SYNC_METRIC_GROUPS = ['uploadSync', 'uploadSyncBulk', 'listingsBulk', 'parsePage'];
+const SYNC_METRIC_FIELDS = ['requests', 'succeeded', 'failed', 'listingsReceived', 'listingsSaved'];
+
+const syncMetrics = {
+  startedAt: new Date().toISOString(),
+  lastResetAt: null,
+  resetCount: 0,
+  uploadSync: { requests: 0, succeeded: 0, failed: 0, listingsReceived: 0, listingsSaved: 0 },
+  uploadSyncBulk: { requests: 0, succeeded: 0, failed: 0, listingsReceived: 0, listingsSaved: 0 },
+  listingsBulk: { requests: 0, succeeded: 0, failed: 0, listingsReceived: 0, listingsSaved: 0 },
+  parsePage: { requests: 0, succeeded: 0, failed: 0, listingsReceived: 0, listingsSaved: 0 },
+};
+
+const syncMetricBuckets = SYNC_METRIC_GROUPS.reduce((groups, group) => {
+  groups[group] = SYNC_METRIC_FIELDS.reduce((fields, field) => {
+    fields[field] = {};
+    return fields;
+  }, {});
+  return groups;
+}, {});
+
+function metricBucketStartMs(atMs = Date.now()) {
+  return Math.floor(atMs / SYNC_METRICS_BUCKET_MS) * SYNC_METRICS_BUCKET_MS;
+}
+
+function pruneMetricBuckets(nowMs = Date.now()) {
+  const cutoffMs = nowMs - SYNC_METRICS_WINDOW_MS;
+  for (const group of SYNC_METRIC_GROUPS) {
+    for (const field of SYNC_METRIC_FIELDS) {
+      const buckets = syncMetricBuckets[group][field];
+      for (const key of Object.keys(buckets)) {
+        if (Number(key) < cutoffMs) {
+          delete buckets[key];
+        }
+      }
+    }
+  }
+}
+
+function getRollingMetricsSnapshot(nowMs = Date.now()) {
+  pruneMetricBuckets(nowMs);
+  const counts = {};
+  for (const group of SYNC_METRIC_GROUPS) {
+    counts[group] = {};
+    for (const field of SYNC_METRIC_FIELDS) {
+      const buckets = syncMetricBuckets[group][field];
+      counts[group][field] = Object.values(buckets).reduce((sum, value) => sum + Number(value || 0), 0);
+    }
+  }
+  return {
+    windowMs: SYNC_METRICS_WINDOW_MS,
+    bucketMs: SYNC_METRICS_BUCKET_MS,
+    counts,
+  };
+}
+
+function metricAdd(group, field, value = 1) {
+  if (!syncMetrics[group]) return;
+  if (syncMetrics[group][field] == null) return;
+
+  const delta = Number(value || 0);
+  syncMetrics[group][field] = Number(syncMetrics[group][field] || 0) + delta;
+
+  const bucketsByField = syncMetricBuckets[group] && syncMetricBuckets[group][field];
+  if (!bucketsByField) return;
+
+  const nowMs = Date.now();
+  pruneMetricBuckets(nowMs);
+  const bucketKey = String(metricBucketStartMs(nowMs));
+  bucketsByField[bucketKey] = Number(bucketsByField[bucketKey] || 0) + delta;
+}
+
+function logSync(level, event, fields = {}) {
+  const payload = {
+    at: new Date().toISOString(),
+    event,
+    ...fields,
+  };
+  const line = `[sync] ${JSON.stringify(payload)}`;
+  if (level === 'error') {
+    console.error(line);
+    return;
+  }
+  if (level === 'warn') {
+    console.warn(line);
+    return;
+  }
+  console.log(line);
+}
+
+function resetSyncMetrics() {
+  for (const group of SYNC_METRIC_GROUPS) {
+    const current = syncMetrics[group] || {};
+    for (const key of Object.keys(current)) {
+      current[key] = 0;
+    }
+  }
+  for (const group of SYNC_METRIC_GROUPS) {
+    for (const field of SYNC_METRIC_FIELDS) {
+      syncMetricBuckets[group][field] = {};
+    }
+  }
+  syncMetrics.lastResetAt = new Date().toISOString();
+  syncMetrics.resetCount = Number(syncMetrics.resetCount || 0) + 1;
+}
 
 function integrationAuthOk(req) {
   const expected = process.env.INTEGRATION_API_KEY;
@@ -272,6 +387,36 @@ function getCredentialKeyErrorResponse() {
       error: 'Credential encryption is not configured. Set CRED_ENCRYPTION_KEY to a 64-character hex value in Railway Variables.',
       code: keyError,
     },
+  };
+}
+
+function normalizeSyncListing(input) {
+  const listing = input && typeof input === 'object' ? input : {};
+  const title = String(listing.title ?? listing.name ?? '').trim().slice(0, 200);
+  const price = String(listing.price || '').trim().slice(0, 100);
+  const condition = String(listing.condition || '').trim().slice(0, 80);
+  const description = String(listing.description || '').trim().slice(0, 5000);
+  const url = String(listing.url || '').trim().slice(0, 1000);
+  const seller = String(listing.seller || '').trim().slice(0, 200);
+  const location = String(listing.location || '').trim().slice(0, 200);
+  const originalId = listing.originalId != null ? String(listing.originalId).slice(0, 100) : null;
+  const images = Array.isArray(listing.images)
+    ? listing.images
+        .map((value) => String(value || '').trim())
+        .filter((value) => value.length > 0)
+        .slice(0, 20)
+    : [];
+
+  return {
+    title,
+    price,
+    condition,
+    description,
+    url,
+    seller,
+    location,
+    originalId,
+    images,
   };
 }
 
@@ -495,11 +640,19 @@ app.post('/api/upload', upload.single('productFile'), (req, res) => {
 });
 
 // Sync endpoint for direct JSON listing data from scrapers/extensions
-app.post('/api/upload-sync', (req, res) => {
-  const { title, price, condition, description, images, platform, originalId, url, seller, location } = req.body;
+app.post('/api/upload-sync', setupLimiter, requireSetupAccess, (req, res) => {
+  const requestId = req.requestId;
+  const startedAtMs = Date.now();
+  const platform = req.body?.platform || 'unknown';
+  const normalized = normalizeSyncListing(req.body);
 
-  if (!title || typeof title !== 'string') {
-    return res.status(400).json({ error: 'Title is required.' });
+  metricAdd('uploadSync', 'requests', 1);
+  metricAdd('uploadSync', 'listingsReceived', 1);
+
+  if (!normalized.title) {
+    metricAdd('uploadSync', 'failed', 1);
+    logSync('warn', 'upload-sync.validation_failed', { requestId, platform, reason: 'missing_title' });
+    return res.status(400).json({ error: 'Title is required.', requestId });
   }
 
   const now = new Date().toISOString();
@@ -507,36 +660,73 @@ app.post('/api/upload-sync', (req, res) => {
 
   const profile = {
     id,
-    title: title.substring(0, 200),
-    price: price || 'Contact for price',
-    condition: condition || 'Used - Good',
-    uploaded_at: now,
-    data_json: JSON.stringify({
-      platform: platform || 'unknown',
-      originalListingId: originalId,
-      description: description || '',
-      images: images || [],
-      url: url || '',
-      seller: seller || '',
-      location: location || '',
-      scrapedAt: now,
-      syncedVia: 'automated-sync',
-    }),
+    title: normalized.title,
+    price: normalized.price || 'Contact for price',
+    condition: normalized.condition || 'Used - Good',
+    uploadedAt: now,
+    platform,
+    originalListingId: normalized.originalId,
+    description: normalized.description,
+    images: normalized.images,
+    url: normalized.url,
+    seller: normalized.seller,
+    location: normalized.location,
+    scrapedAt: now,
+    syncedVia: 'automated-sync',
   };
 
   try {
     saveProfile(profile);
-    return res.json({ ok: true, id, profile: { id, title: profile.title } });
+    metricAdd('uploadSync', 'succeeded', 1);
+    metricAdd('uploadSync', 'listingsSaved', 1);
+    logSync('info', 'upload-sync.saved', {
+      requestId,
+      platform,
+      listingId: id,
+      durationMs: Date.now() - startedAtMs,
+    });
+    return res.json({ ok: true, id, profile: { id, title: profile.title }, requestId });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    metricAdd('uploadSync', 'failed', 1);
+    logSync('error', 'upload-sync.save_failed', {
+      requestId,
+      platform,
+      error: err.message,
+      durationMs: Date.now() - startedAtMs,
+    });
+    return res.status(500).json({ error: err.message, requestId });
   }
 });
 
-app.post('/api/upload-sync/bulk', (req, res) => {
+app.post('/api/upload-sync/bulk', setupLimiter, requireSetupAccess, (req, res) => {
+  const requestId = req.requestId;
+  const startedAtMs = Date.now();
   const { listings, platform } = req.body;
 
+  metricAdd('uploadSyncBulk', 'requests', 1);
+
   if (!Array.isArray(listings)) {
-    return res.status(400).json({ error: 'listings must be an array' });
+    metricAdd('uploadSyncBulk', 'failed', 1);
+    logSync('warn', 'upload-sync-bulk.validation_failed', { requestId, reason: 'not_array' });
+    return res.status(400).json({ error: 'listings must be an array', requestId });
+  }
+
+  metricAdd('uploadSyncBulk', 'listingsReceived', listings.length);
+
+  if (listings.length > MAX_SYNC_LISTINGS) {
+    metricAdd('uploadSyncBulk', 'failed', 1);
+    logSync('warn', 'upload-sync-bulk.validation_failed', {
+      requestId,
+      reason: 'batch_too_large',
+      size: listings.length,
+      max: MAX_SYNC_LISTINGS,
+    });
+    return res.status(413).json({
+      error: `Too many listings in one request. Max is ${MAX_SYNC_LISTINGS}.`,
+      code: 'SYNC_BATCH_TOO_LARGE',
+      max: MAX_SYNC_LISTINGS,
+      requestId,
+    });
   }
 
   const results = [];
@@ -544,7 +734,8 @@ app.post('/api/upload-sync/bulk', (req, res) => {
 
   listings.forEach((listing, idx) => {
     try {
-      if (!listing.title) {
+      const normalized = normalizeSyncListing(listing);
+      if (!normalized.title) {
         errors.push(`Listing ${idx}: missing title`);
         return;
       }
@@ -554,22 +745,20 @@ app.post('/api/upload-sync/bulk', (req, res) => {
 
       const profile = {
         id,
-        title: listing.title.substring(0, 200),
-        price: listing.price || 'Contact for price',
-        condition: listing.condition || 'Used - Good',
-        uploaded_at: now,
-        data_json: JSON.stringify({
-          platform: platform || 'unknown',
-          originalListingId: listing.originalId || listing.id || null,
-          description: listing.description || '',
-          images: listing.images || [],
-          url: listing.url || '',
-          seller: listing.seller || '',
-          location: listing.location || '',
-          scrapedAt: now,
-          raw: listing.raw || {},
-          syncedVia: 'automated-sync-bulk',
-        }),
+        title: normalized.title,
+        price: normalized.price || 'Contact for price',
+        condition: normalized.condition || 'Used - Good',
+        uploadedAt: now,
+        platform: platform || 'unknown',
+        originalListingId: normalized.originalId || listing.id || null,
+        description: normalized.description,
+        images: normalized.images,
+        url: normalized.url,
+        seller: normalized.seller,
+        location: normalized.location,
+        scrapedAt: now,
+        raw: listing.raw || {},
+        syncedVia: 'automated-sync-bulk',
       };
 
       saveProfile(profile);
@@ -579,13 +768,32 @@ app.post('/api/upload-sync/bulk', (req, res) => {
     }
   });
 
+  const failed = errors.length;
+  const synced = results.length;
+  metricAdd('uploadSyncBulk', 'listingsSaved', synced);
+  if (failed > 0) {
+    metricAdd('uploadSyncBulk', 'failed', 1);
+  }
+  if (synced > 0) {
+    metricAdd('uploadSyncBulk', 'succeeded', 1);
+  }
+  logSync(failed > 0 ? 'warn' : 'info', 'upload-sync-bulk.completed', {
+    requestId,
+    platform: platform || 'unknown',
+    total: listings.length,
+    synced,
+    failed,
+    durationMs: Date.now() - startedAtMs,
+  });
+
   return res.json({
     ok: true,
     total: listings.length,
-    synced: results.length,
-    failed: errors.length,
+    synced,
+    failed,
     results,
-    errors: errors.length > 0 ? errors : undefined
+    errors: failed > 0 ? errors : undefined,
+    requestId,
   });
 });
 
@@ -793,46 +1001,120 @@ app.post('/api/outbound', integrationLimiter, (req, res) => {
 // One-Click Setup: Save credentials & sync
 // ============================================
 
-app.post('/api/listings/bulk', setupLimiter, (req, res) => {
+app.post('/api/listings/bulk', setupLimiter, requireSetupAccess, (req, res) => {
+  const requestId = req.requestId;
+  const startedAtMs = Date.now();
   const listings = Array.isArray(req.body?.listings) ? req.body.listings : [];
   const platform = req.body?.platform || 'facebook_marketplace';
 
+  metricAdd('listingsBulk', 'requests', 1);
+  metricAdd('listingsBulk', 'listingsReceived', listings.length);
+
   if (listings.length === 0) {
-    return res.status(400).json({ error: 'No listings provided.' });
+    metricAdd('listingsBulk', 'failed', 1);
+    logSync('warn', 'listings-bulk.validation_failed', { requestId, reason: 'empty_batch', platform });
+    return res.status(400).json({ error: 'No listings provided.', requestId });
+  }
+
+  if (listings.length > MAX_SYNC_LISTINGS) {
+    metricAdd('listingsBulk', 'failed', 1);
+    logSync('warn', 'listings-bulk.validation_failed', {
+      requestId,
+      reason: 'batch_too_large',
+      platform,
+      size: listings.length,
+      max: MAX_SYNC_LISTINGS,
+    });
+    return res.status(413).json({
+      error: `Too many listings in one request. Max is ${MAX_SYNC_LISTINGS}.`,
+      code: 'SYNC_BATCH_TOO_LARGE',
+      max: MAX_SYNC_LISTINGS,
+      requestId,
+    });
   }
 
   let saved = 0;
+  const errors = [];
   const now = new Date().toISOString();
 
-  for (const listing of listings) {
+  listings.forEach((listing, idx) => {
     try {
-      if (!listing.title) continue;
+      const normalized = normalizeSyncListing(listing);
+      if (!normalized.title) {
+        errors.push(`Listing ${idx}: missing title`);
+        return;
+      }
 
-      const id = `bulk_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+      const id = `bulk_${Date.now()}_${idx}_${Math.random().toString(36).substr(2, 5)}`;
       const profile = {
         id,
-        title: listing.title.substring(0, 200),
-        price: listing.price || 'Contact for price',
-        condition: listing.condition || 'Used',
-        uploaded_at: now,
-        data_json: JSON.stringify({
-          platform,
-          description: listing.description || '',
-          images: listing.images || [],
-          url: listing.url || '',
-          syncedAt: now,
-          source: 'bookmarklet',
-        }),
+        title: normalized.title,
+        price: normalized.price || 'Contact for price',
+        condition: normalized.condition || 'Used',
+        uploadedAt: now,
+        platform,
+        description: normalized.description,
+        images: normalized.images,
+        url: normalized.url,
+        seller: normalized.seller,
+        location: normalized.location,
+        syncedAt: now,
+        source: 'bookmarklet',
       };
 
       saveProfile(profile);
       saved++;
     } catch (err) {
+      errors.push(`Listing ${idx}: ${err.message}`);
       console.error('Error saving bulk listing:', err.message);
     }
+  });
+
+  metricAdd('listingsBulk', 'listingsSaved', saved);
+  if (saved > 0) {
+    metricAdd('listingsBulk', 'succeeded', 1);
+  }
+  if (errors.length > 0) {
+    metricAdd('listingsBulk', 'failed', 1);
   }
 
-  return res.json({ ok: true, count: saved });
+  if (saved === 0) {
+    logSync('warn', 'listings-bulk.completed', {
+      requestId,
+      platform,
+      total: listings.length,
+      synced: 0,
+      failed: errors.length,
+      durationMs: Date.now() - startedAtMs,
+    });
+    return res.status(400).json({
+      error: 'No valid listings were saved. Check that scraped listings contain a title.',
+      total: listings.length,
+      synced: 0,
+      failed: errors.length,
+      errors,
+      requestId,
+    });
+  }
+
+  logSync(errors.length > 0 ? 'warn' : 'info', 'listings-bulk.completed', {
+    requestId,
+    platform,
+    total: listings.length,
+    synced: saved,
+    failed: errors.length,
+    durationMs: Date.now() - startedAtMs,
+  });
+
+  return res.json({
+    ok: true,
+    total: listings.length,
+    count: saved,
+    synced: saved,
+    failed: errors.length,
+    errors: errors.length ? errors : undefined,
+    requestId,
+  });
 });
 
 
@@ -940,12 +1222,37 @@ app.get('/api/stats', (req, res) => {
   });
 });
 
-app.post('/api/listings/parse-page', setupLimiter, async (req, res) => {
-  // Handle both standard JSON and Form POST (bookmarklet bypass)
-  let { pageText, links, images } = req.body || {};
-  const isRedirect = req.query.redirect === 'true';
+app.get('/api/admin/sync-metrics', requireAdmin, (req, res) => {
+  return res.json({
+    ok: true,
+    requestId: req.requestId,
+    metrics: syncMetrics,
+    rollingMetrics: getRollingMetricsSnapshot(),
+  });
+});
 
-  console.log(`[Sync] Received request. Text length: ${pageText?.length || 0}, Links: ${links?.length || 0}`);
+app.post('/api/admin/sync-metrics/reset', requireAdmin, requireAdminCsrf, (req, res) => {
+  const requestId = req.requestId;
+  resetSyncMetrics();
+  logSync('warn', 'admin.sync-metrics.reset', { requestId });
+  return res.json({ ok: true, requestId, metrics: syncMetrics, rollingMetrics: getRollingMetricsSnapshot() });
+});
+
+app.post('/api/listings/parse-page', setupLimiter, requireSetupAccess, async (req, res) => {
+  // Handle both standard JSON and Form POST (bookmarklet bypass)
+  let { pageText, links, images, listings: structuredListings } = req.body || {};
+  const isRedirect = req.query.redirect === 'true';
+  const requestId = req.requestId;
+  const startedAtMs = Date.now();
+
+  metricAdd('parsePage', 'requests', 1);
+  logSync('info', 'parse-page.received', {
+    requestId,
+    textLength: pageText?.length || 0,
+    linksCount: links?.length || 0,
+    structuredCount: Array.isArray(structuredListings) ? structuredListings.length : 0,
+    isRedirect,
+  });
 
   if (typeof links === 'string' && links.startsWith('[')) {
     try { links = JSON.parse(links); } catch { links = []; }
@@ -953,19 +1260,38 @@ app.post('/api/listings/parse-page', setupLimiter, async (req, res) => {
   if (typeof images === 'string' && images.startsWith('[')) {
     try { images = JSON.parse(images); } catch { images = []; }
   }
-
-  if (!pageText || pageText.trim().length < 10) {
-    console.warn('[Sync] No page text provided or text too short.');
-    if (isRedirect) return res.redirect('/setup-status.html?error=no_text');
-    return res.status(400).json({ error: 'No page text provided.' });
+  if (typeof structuredListings === 'string' && structuredListings.startsWith('[')) {
+    try { structuredListings = JSON.parse(structuredListings); } catch { structuredListings = []; }
   }
 
-  const text = pageText.substring(0, 15000);
+  const hasStructuredListings = Array.isArray(structuredListings) && structuredListings.length > 0;
+  if ((!pageText || pageText.trim().length < 10) && !hasStructuredListings) {
+    metricAdd('parsePage', 'failed', 1);
+    logSync('warn', 'parse-page.validation_failed', { requestId, reason: 'no_text_or_listings' });
+    if (isRedirect) return res.redirect('/setup-status.html?error=no_text');
+    return res.status(400).json({ error: 'No page text or structured listings provided.', requestId });
+  }
+
+  const text = typeof pageText === 'string' ? pageText.substring(0, 15000) : '';
   const now = new Date().toISOString();
   let listings = [];
 
+  if (hasStructuredListings) {
+    const seen = new Set();
+    listings = structuredListings
+      .map((item) => normalizeSyncListing(item))
+      .filter((item) => {
+        if (!item.title || item.title.length < 2) return false;
+        const key = `${item.url}::${item.title.toLowerCase()}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    logSync('info', 'parse-page.structured_used', { requestId, count: listings.length });
+  }
+
   const apiKey = process.env.OPENAI_API_KEY;
-  if (apiKey) {
+  if (!listings.length && text.length > 0 && apiKey) {
     try {
       console.log('[Sync] Using AI to extract listings...');
       const { OpenAI } = require('openai');
@@ -996,15 +1322,14 @@ app.post('/api/listings/parse-page', setupLimiter, async (req, res) => {
         max_tokens: 2000,
       });
       const raw = resp.choices[0].message.content.trim().replace(/^```json|^```|```$/gm, '');
-      listings = JSON.parse(raw).filter(item => item.status !== 'Sold');
+      listings = JSON.parse(raw).filter(item => item.status !== 'Sold').map((item) => normalizeSyncListing(item));
       console.log(`[Sync] AI found ${listings.length} listings.`);
     } catch (err) {
       console.error('AI parse error:', err.message);
     }
   }
 
-  // Fallback simple regex if AI fails or no API key
-  if (!listings.length) {
+  if (!listings.length && text.length > 0) {
     console.log('[Sync] Running fallback regex parser...');
     const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
     for (let i = 0; i < lines.length; i++) {
@@ -1016,37 +1341,39 @@ app.post('/api/listings/parse-page', setupLimiter, async (req, res) => {
         && /[a-zA-Z]/.test(line);
       
       if (isTitle && priceMatch) {
-        listings.push({ title: line, price: priceMatch[0] });
+        listings.push(normalizeSyncListing({ title: line, price: priceMatch[0] }));
       } else if (isTitle && line.length > 5 && listings.length < 50) {
-        // High-effort fallback for titles even if price is missing in raw text
-        listings.push({ title: line, price: '' });
+        listings.push(normalizeSyncListing({ title: line, price: '' }));
       }
     }
     console.log(`[Sync] Regex found ${listings.length} listings.`);
   }
+
+  metricAdd('parsePage', 'listingsReceived', listings.length);
 
   const linkMap = Array.isArray(links) ? links : [];
   const imageMap = Array.isArray(images) ? images : [];
   let saved = 0;
 
   for (const item of listings) {
-    if (!item.title || item.title.length < 2) continue;
+    const normalized = normalizeSyncListing(item);
+    if (!normalized.title || normalized.title.length < 2) continue;
     try {
-      // Find the most likely link (item link containing numeric ID)
-      const url = linkMap.find(l => l.includes('/item/')) || '';
+      const url = normalized.url || linkMap.find((l) => l.includes('/item/')) || '';
+      const listingImages = normalized.images.length > 0 ? normalized.images : imageMap.slice(0, 3);
       
       saveProfile({
         id: `sync_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-        title: item.title.substring(0, 200),
-        price: item.price || '',
-        condition: 'Used',
+        title: normalized.title.substring(0, 200),
+        price: normalized.price || '',
+        condition: normalized.condition || 'Used',
         uploadedAt: now,
-        highlights: [item.title],
-        description: item.title,
+        highlights: [normalized.title],
+        description: normalized.description || normalized.title,
         url,
-        images: imageMap.slice(0, 3), // Grab first few images as best guess
+        images: listingImages,
         syncedAt: now,
-        source: 'bookmarklet-ai',
+        source: hasStructuredListings ? 'bookmarklet-dom' : 'bookmarklet-ai',
       });
       saved++;
     } catch (e) {
@@ -1054,12 +1381,24 @@ app.post('/api/listings/parse-page', setupLimiter, async (req, res) => {
     }
   }
 
-  console.log(`[Sync] Finished. Saved ${saved} total profiles.`);
+  metricAdd('parsePage', 'listingsSaved', saved);
+  if (saved > 0) {
+    metricAdd('parsePage', 'succeeded', 1);
+  } else {
+    metricAdd('parsePage', 'failed', 1);
+  }
+
+  logSync(saved > 0 ? 'info' : 'warn', 'parse-page.completed', {
+    requestId,
+    parsed: listings.length,
+    saved,
+    durationMs: Date.now() - startedAtMs,
+  });
 
   if (isRedirect) {
     return res.redirect(`/setup-status.html?count=${saved}`);
   }
-  return res.json({ ok: true, count: saved, parsed: listings.length });
+  return res.json({ ok: true, count: saved, parsed: listings.length, requestId });
 });
 if (require.main === module) {
   app.listen(port, '0.0.0.0', () => {

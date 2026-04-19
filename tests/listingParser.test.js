@@ -51,6 +51,30 @@ Used - Fair
   assert.equal(profile.images[0], images[0]);
 });
 
+test('/api/listings/parse-page accepts structured listings payload and ignores invalid entries', async () => {
+  const res = await request(app)
+    .post('/api/listings/parse-page')
+    .send({
+      pageText: '',
+      listings: [
+        { title: 'Desk Lamp', price: '$25', url: 'https://www.facebook.com/marketplace/item/111/' },
+        { title: 'Desk Lamp', price: '$25', url: 'https://www.facebook.com/marketplace/item/111/' },
+        { title: '  ', price: '$50', url: 'https://www.facebook.com/marketplace/item/222/' },
+        { title: 'Office Chair', price: '$80', url: 'https://www.facebook.com/marketplace/item/333/' }
+      ]
+    });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.ok, true);
+  assert.equal(res.body.count, 2);
+
+  const productsRes = await request(app).get('/api/products');
+  assert.equal(productsRes.status, 200);
+  const listings = productsRes.body.listings;
+  assert.ok(listings.find((l) => l.title === 'Desk Lamp'));
+  assert.ok(listings.find((l) => l.title === 'Office Chair'));
+});
+
 test('/api/listings/parse-page handles empty or invalid input', async () => {
   const resEmpty = await request(app)
     .post('/api/listings/parse-page')

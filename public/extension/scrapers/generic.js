@@ -18,8 +18,9 @@
         const title = titleEl?.textContent?.trim();
 
         // Extract price (look for $ symbol or price keywords)
-        const priceEl = el.querySelector('[class*="price"], .amount, span:has-text("$"), [data-testid*="price"]');
-        const price = priceEl?.textContent?.trim();
+        const priceEl = el.querySelector('[class*="price"], .amount, [data-testid*="price"]');
+        const fallbackPrice = Array.from(el.querySelectorAll('span')).map((s) => s.textContent?.trim() || '').find((txt) => /^\$\d/.test(txt));
+        const price = priceEl?.textContent?.trim() || fallbackPrice || '';
 
         // Extract image
         const img = el.querySelector('img');

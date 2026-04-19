@@ -23,7 +23,7 @@
         window.addEventListener('message', async (event) => {
             // We only care about SYNC_LISTINGS messages
             if (event.data && event.data.type === 'SYNC_LISTINGS') {
-                const { pageText, links, images } = event.data.payload;
+                const { pageText, links, images, listings } = event.data.payload;
                 
                 document.getElementById('status').innerText = 'Saving to database...';
 
@@ -31,7 +31,7 @@
                     const res = await fetch('/api/listings/parse-page', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ pageText, links, images })
+                        body: JSON.stringify({ pageText, links, images, listings })
                     });
                     
                     const data = await res.json();

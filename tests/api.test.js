@@ -319,6 +319,113 @@ test('craigslist email relay requires integration key and parses email fields', 
   assert.ok(res.body.parsed);
 });
 
+test('/api/listings/bulk returns explicit error when no valid listing titles are provided', async () => {
+  const res = await request(app)
+    .post('/api/listings/bulk')
+    .send({
+      platform: 'facebook_marketplace',
+      listings: [{}, { title: '   ' }, { name: '' }],
+    });
+
+  assert.equal(res.status, 400);
+  assert.equal(res.body.synced, 0);
+  assert.equal(res.body.total, 3);
+  assert.equal(res.body.failed >= 1, true);
+  assert.equal(Array.isArray(res.body.errors), true);
+});
+
+test('/api/listings/bulk rejects oversized sync batches', async () => {
+  const tooManyListings = Array.from({ length: 251 }, (_, i) => ({ title: `Bulk Item ${i}` }));
+
+  const res = await request(app)
+    .post('/api/listings/bulk')
+    .send({
+      platform: 'facebook_marketplace',
+      listings: tooManyListings,
+    });
+
+  assert.equal(res.status, 413);
+  assert.equal(res.body.code, 'SYNC_BATCH_TOO_LARGE');
+});
+
+test('/api/upload-sync/bulk rejects oversized sync batches', async () => {
+  const tooManyListings = Array.from({ length: 251 }, (_, i) => ({ title: `Upload Sync Item ${i}` }));
+
+  const res = await request(app)
+    .post('/api/upload-sync/bulk')
+    .send({
+      platform: 'facebook_marketplace',
+      listings: tooManyListings,
+    });
+
+  assert.equal(res.status, 413);
+  assert.equal(res.body.code, 'SYNC_BATCH_TOO_LARGE');
+});
+
+test('sync endpoints echo request IDs and admin sync metrics are available', async () => {
+  const requestId = 'req-observe-123';
+
+  const bulkRes = await request(app)
+    .post('/api/upload-sync/bulk')
+    .set('x-request-id', requestId)
+    .send({
+      platform: 'facebook_marketplace',
+      listings: [{ title: 'Observability Listing', price: '$10' }],
+    });
+
+  assert.equal(bulkRes.status, 200);
+  assert.equal(bulkRes.body.requestId, requestId);
+  assert.equal(bulkRes.headers['x-request-id'], requestId);
+
+  const metricsRes = await request(app)
+    .get('/api/admin/sync-metrics')
+    .set('Cookie', adminCookie);
+
+  assert.equal(metricsRes.status, 200);
+  assert.equal(metricsRes.body.ok, true);
+  assert.ok(metricsRes.body.metrics);
+  assert.ok(metricsRes.body.metrics.uploadSyncBulk.requests >= 1);
+  assert.ok(metricsRes.body.metrics.uploadSyncBulk.listingsSaved >= 1);
+  assert.ok(metricsRes.body.rollingMetrics);
+  assert.ok(metricsRes.body.rollingMetrics.counts.uploadSyncBulk.requests >= 1);
+  assert.ok(metricsRes.body.rollingMetrics.counts.uploadSyncBulk.listingsSaved >= 1);
+});
+
+test('admin sync metrics reset requires CSRF and clears counters', async () => {
+  const seedRes = await request(app)
+    .post('/api/upload-sync/bulk')
+    .send({
+      platform: 'facebook_marketplace',
+      listings: [{ title: 'Reset Seed Listing' }],
+    });
+  assert.equal(seedRes.status, 200);
+
+  const noCsrf = await request(app)
+    .post('/api/admin/sync-metrics/reset')
+    .set('Cookie', adminCookie)
+    .send({});
+  assert.equal(noCsrf.status, 403);
+
+  const resetRes = await request(app)
+    .post('/api/admin/sync-metrics/reset')
+    .set('Cookie', adminCookie)
+    .set('x-csrf-token', csrfToken)
+    .send({});
+  assert.equal(resetRes.status, 200);
+  assert.equal(resetRes.body.ok, true);
+  assert.ok(resetRes.body.metrics.lastResetAt);
+  assert.ok(resetRes.body.metrics.resetCount >= 1);
+  assert.equal(resetRes.body.metrics.uploadSync.requests, 0);
+  assert.equal(resetRes.body.metrics.uploadSyncBulk.requests, 0);
+  assert.equal(resetRes.body.metrics.listingsBulk.requests, 0);
+  assert.equal(resetRes.body.metrics.parsePage.requests, 0);
+  assert.ok(resetRes.body.rollingMetrics);
+  assert.equal(resetRes.body.rollingMetrics.counts.uploadSync.requests, 0);
+  assert.equal(resetRes.body.rollingMetrics.counts.uploadSyncBulk.requests, 0);
+  assert.equal(resetRes.body.rollingMetrics.counts.listingsBulk.requests, 0);
+  assert.equal(resetRes.body.rollingMetrics.counts.parsePage.requests, 0);
+});
+
 test('admin logout clears session cookies', async () => {
   const res = await request(app)
     .post('/api/admin/logout')

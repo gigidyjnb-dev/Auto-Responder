@@ -17,7 +17,9 @@
     "https://*.offerup.com/*",
     "https://*.mercari.com/*",
     "https://*.poshmark.com/*",
-    "https://*.craigslist.org/*"
+    "https://*.craigslist.org/*",
+    "http://*/*",
+    "https://*/*"
   ],
   "action": {
     "default_popup": "popup.html",
