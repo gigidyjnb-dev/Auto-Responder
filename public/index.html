@@ -93,19 +93,53 @@ INTEGRATION_API_KEY=REPLACE_WITH_STRONG_KEY
     // Build the bookmarklet script
     const origin = window.location.origin;
     const bookmarkletCode = `javascript:(function(){
-      console.log('🚀 Syncing listings to ${origin}...');
       const listings = [];
-      const cards = document.querySelectorAll('[data-testid="marketplace_listing_item"], a[href*="/marketplace/item/"]');
-      
-      cards.forEach(card => {
-        const title = card.querySelector('[data-testid="marketplace_listing_title"], span[dir="auto"]')?.textContent?.trim();
-        const price = card.querySelector('[data-testid="marketplace_listing_price"]')?.textContent?.trim();
-        const link = card.closest('a')?.href || card.href;
-        const img = card.querySelector('img')?.src;
-        if (title && price) listings.push({ title, price, url: link, images: img ? [img] : [] });
+      const seen = new Set();
+
+      function getText(el) { return el ? el.textContent.trim() : ''; }
+
+      function tryCard(el) {
+        const link = el.closest('a') || (el.tagName === 'A' ? el : null);
+        const href = link ? link.href : '';
+        if (!href.includes('/marketplace/item/') && !href.includes('/marketplace/')) return;
+        if (seen.has(href)) return;
+
+        const allSpans = el.querySelectorAll('span[dir="auto"], span');
+        let title = '';
+        let price = '';
+
+        for (const s of allSpans) {
+          const t = getText(s);
+          if (!title && t.length > 3 && t.length < 150 && !/^\$/.test(t) && !/^\\d+$/.test(t)) title = t;
+          if (!price && /\\$[\\d,]+/.test(t)) price = t;
+        }
+
+        if (!title) {
+          const img = el.querySelector('img');
+          title = img ? (img.alt || '').trim() : '';
+        }
+
+        const img = el.querySelector('img');
+        if (title && title.length > 1) {
+          seen.add(href);
+          listings.push({ title, price: price || '', url: href, images: img && img.src ? [img.src] : [] });
+        }
+      }
+
+      document.querySelectorAll('a[href*="/marketplace/item/"]').forEach(tryCard);
+      document.querySelectorAll('[role="main"] div[style*="border-radius"]').forEach(tryCard);
+      document.querySelectorAll('[aria-label]').forEach(el => {
+        const label = el.getAttribute('aria-label') || '';
+        if (label.length > 3 && label.length < 150) {
+          const href = el.closest('a')?.href || '';
+          if (href.includes('/marketplace/') && !seen.has(href)) {
+            seen.add(href);
+            listings.push({ title: label, price: '', url: href, images: [] });
+          }
+        }
       });
 
-      if (listings.length === 0) return alert('No listings found. Make sure you are on the "Your Listings" page.');
+      if (listings.length === 0) return alert('No listings found. Make sure your listings are visible on screen and try scrolling down to load them first.');
 
       fetch('${origin}/api/listings/bulk', {
         method: 'POST',
@@ -113,7 +147,7 @@ INTEGRATION_API_KEY=REPLACE_WITH_STRONG_KEY
         body: JSON.stringify({ listings })
       })
       .then(r => r.json())
-      .then(data => alert('✅ Successfully synced ' + data.count + ' listings to your responder!'))
+      .then(data => alert('✅ Synced ' + data.count + ' listings!'))
       .catch(err => alert('❌ Sync failed: ' + err.message));
     })();`;
     
