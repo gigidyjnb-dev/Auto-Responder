@@ -21,19 +21,17 @@ function showProgress(percent) {
 }
 
 async function scrapeCurrentPage(platform) {
-  // Use content script directly (already injected via manifest)
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-  if (!tab.url) {
-    throw new Error('Could not get current tab URL.');
+  if (!tab.url?.includes('marketplace') && !tab.url?.includes('ebay') && !tab.url?.includes('etsy') && !tab.url?.includes('offerup') && !tab.url?.includes('mercari') && !tab.url?.includes('poshmark') && !tab.url?.includes('craigslist')) {
+    throw new Error('Please navigate to a marketplace listings page (e.g., Facebook Marketplace → Your Listings).');
   }
 
-  // Execute scraper in page context
-  const scraperPath = `scrapers/${platform}.js`;
+  // Use universal scraper that detects platform automatically
   try {
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      files: [scraperPath]
+      files: ['scrapers/universal.js']
     });
 
     const listings = results[0]?.result;
@@ -43,7 +41,7 @@ async function scrapeCurrentPage(platform) {
     return listings;
   } catch (err) {
     console.error('Scraper error:', err);
-    throw new Error(`Scraper failed: ${err.message}. Make sure you are on a listings page.`);
+    throw new Error(`Scraper failed: ${err.message}. Try refreshing the page and ensure listings are visible.`);
   }
 }
 

@@ -18,7 +18,7 @@ const SOURCE_FILES = [
   'popup.html',
   'popup.js',
   'background.js',
-  'scrapers/facebook_marketplace.js',
+  'scrapers/universal.js',
   'icons/icon16.png',
   'icons/icon48.png',
   'icons/icon128.png'
