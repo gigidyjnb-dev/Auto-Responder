@@ -13,12 +13,7 @@
     .badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; text-transform: uppercase; margin-bottom: 12px; }
     .badge-primary { background: #e6f0ff; color: #0066ff; }
     .badge-success { background: #e6ffed; color: #28a745; }
-    .bookmarklet-btn { display: inline-block; background: #333; color: white; padding: 10px 20px; border-radius: 8px; font-weight: 700; text-decoration: none; cursor: move; border: 2px dashed #666; }
-    .bookmarklet-dock { position: fixed; top: 12px; right: 12px; z-index: 2000; background: rgba(255,255,255,0.96); border: 1px solid #dbe5ff; border-radius: 12px; box-shadow: 0 8px 22px rgba(0,0,0,0.12); padding: 10px; }
-    .bookmarklet-dock-note { font-size: 11px; color: var(--muted); margin-top: 6px; text-align: center; }
-    @media (max-width: 768px) {
-      .bookmarklet-dock { top: 8px; right: 8px; left: 8px; display: flex; flex-direction: column; align-items: center; }
-    }
+    
     .code-block { background: #f8f9fa; padding: 16px; border-radius: 8px; font-family: monospace; font-size: 13px; overflow-x: auto; border: 1px solid #eee; margin: 12px 0; }
   </style>
 </head>
@@ -26,10 +21,7 @@
   <div class="bg-shape shape-a"></div>
   <div class="bg-shape shape-b"></div>
 
-  <div class="bookmarklet-dock">
-    <a id="bookmarkletLink" href="#" class="bookmarklet-btn" style="background: #0066ff; color: white; border: none; padding: 12px 22px; font-size: 17px; box-shadow: 0 4px 14px rgba(0,102,255,0.4);">🚀 Atomic Sync</a>
-    <div class="bookmarklet-dock-note">Drag to bookmarks bar</div>
-  </div>
+  
 
   <main class="page" style="max-width: 700px; text-align: center;">
     <div style="padding: 60px 20px;">
@@ -99,96 +91,7 @@ INTEGRATION_API_KEY=REPLACE_WITH_STRONG_KEY
     </div>
   </main>
 
-  <script>
-    // Build the bookmarklet script
-    const origin = window.location.origin;
-    const bookmarkletCode = `javascript:(async function(){
-      const origin = '${origin}';
-      const textOf = (el) => (el && el.textContent ? el.textContent : '').replace(/\\s+/g, ' ').trim();
-      const priceFrom = (txt) => {
-        const m = String(txt || '').match(/\\$\\s?\\d[\\d,]*(?:\\.\\d{2})?/);
-        return m ? m[0].replace(/\\s+/g, '') : '';
-      };
-      const parseTitleFromCard = (card, anchor) => {
-        // Try specific FB title selectors first
-        const selectors = [
-          '[data-testid="marketplace_listing_title"]',
-          'span[style*="-webkit-line-clamp"]',
-          'div > span[dir="auto"]'
-        ];
-        for (const sel of selectors) {
-          const els = Array.from(card.querySelectorAll(sel));
-          for (const el of els) {
-            const txt = textOf(el);
-            if (txt && txt.length > 5 && txt.length < 150 && !/\\$\\d/.test(txt) && !/^(active|sold|pending|edit|delete|boost|share)$/i.test(txt)) {
-              return txt;
-            }
-          }
-        }
-        return textOf(anchor).substring(0, 100);
-      };
-
-      console.log('[Atomic Sync] Starting extraction...');
-      
-      // Auto-scroll to load more
-      for(let i=0; i<3; i++) {
-        window.scrollBy(0, 800);
-        await new Promise(r => setTimeout(r, 600));
-      }
-
-      const listingAnchors = Array.from(document.querySelectorAll('a[href*="/marketplace/item/"], a[href*="/item/"]'));
-      const seen = new Set();
-      const listings = [];
-
-      for (const anchor of listingAnchors) {
-        const rawUrl = (anchor && anchor.href) ? anchor.href : '';
-        const url = rawUrl ? rawUrl.split('?')[0] : '';
-        if (!url || seen.has(url)) continue;
-
-        const card = anchor.closest('[data-testid="marketplace_listing_item"], [role="article"], li, article, div[class*="item"]');
-        if (!card) continue;
-
-        const cardText = textOf(card);
-        if (!cardText || /\\b(sold|delisted|no longer available)\\b/i.test(cardText)) continue;
-
-        const title = parseTitleFromCard(card, anchor);
-        if (!title || title.length < 3) continue;
-
-        const price = priceFrom(cardText);
-        const img = card.querySelector('img');
-        const image = img && img.src ? img.src : '';
-
-        listings.push({ title, price, url, images: image ? [image] : [] });
-        seen.add(url);
-      }
-
-      console.log('[Atomic Sync] Found ' + listings.length + ' listings');
-
-      if (listings.length === 0) {
-        alert('No listings found! Please make sure you are on the "Your Listings" page and have scrolled down.');
-        return;
-      }
-
-      const pageText = document.body.innerText.substring(0, 10000);
-      const links = listings.map((l) => l.url);
-      const images = listings.flatMap((l) => l.images);
-
-      const bridge = window.open(origin + '/bridge.html', 'sync_bridge', 'width=450,height=350');
-      const listener = (event) => {
-        if (event.origin !== origin) return;
-        if (event.data === 'bridge_ready') {
-          bridge.postMessage({
-            type: 'SYNC_LISTINGS',
-            payload: { pageText, links, images, listings }
-          }, origin);
-          window.removeEventListener('message', listener);
-        }
-      };
-      window.addEventListener('message', listener);
-    })();`;
-    
-    document.getElementById('bookmarkletLink').href = bookmarkletCode;
-
+<script>
     // Cloud Sync Logic
     document.getElementById('connectBtn').addEventListener('click', async () => {
       const email = document.getElementById('email').value.trim();
