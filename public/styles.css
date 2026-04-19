@@ -288,3 +288,20 @@ button:disabled {
     border-radius: 16px;
   }
 }
+
+/* Extension syncing section */
+.platform-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+  margin-bottom: 12px;
+}
+.platform-badge {
+  background: #f0f4ff;
+  color: #0066ff;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 13px;
+}
