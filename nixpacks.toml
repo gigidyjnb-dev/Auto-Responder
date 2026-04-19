@@ -1,0 +1,12 @@
+[phases.setup]
+nixPkgs = ["...", "libatomic_ops"]
+aptPkgs = ["libatomic1"]
+
+[phases.install]
+cmds = ["npm install"]
+
+[phases.build]
+cmds = ["npm run build:ext || true"]
+
+[start]
+cmd = "npm start"
