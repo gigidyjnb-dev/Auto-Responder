@@ -49,11 +49,8 @@ WORKDIR /app
 # Copy package manifests
 COPY package*.json ./
 
-# Set Puppeteer to skip Chromium download (we'll install via apt)
-# Actually we want puppeteer to download its own Chromium or use system?
-# We'll let it download to ensure version match
+# Set Puppeteer to download Chromium
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=false
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome
 
 RUN npm ci --omit=dev --ignore-scripts
 
