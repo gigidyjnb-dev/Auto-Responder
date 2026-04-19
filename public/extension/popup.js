@@ -37,19 +37,37 @@ function hideProgress() {
 /* ── Load settings ─────────────────────────────────────── */
 let serverUrl = '';
 
-chrome.storage.local.get(['serverUrl', 'autoReplyEnabled', 'autoSendEnabled', 'statReplies', 'statListings'], (r) => {
-  serverUrl = (r.serverUrl || '').replace(/\/$/, '');
-  $('serverUrl').value = serverUrl;
-  $('autoReplyToggle').checked = Boolean(r.autoReplyEnabled);
-  $('autoSendToggle').checked = Boolean(r.autoSendEnabled);
-  updateArBadge(Boolean(r.autoReplyEnabled));
-  $('statReplies').textContent = r.statReplies || '0';
-  $('statListings').textContent = r.statListings || '0';
+chrome.storage.local.get(
+  ['serverUrl', 'autoReplyEnabled', 'autoSendEnabled', 'statReplies', 'statListings',
+   'awayEnabled', 'awayStart', 'awayEnd', 'awayMessage'],
+  (r) => {
+    serverUrl = (r.serverUrl || '').replace(/\/$/, '');
+    $('serverUrl').value = serverUrl;
+    $('autoReplyToggle').checked = Boolean(r.autoReplyEnabled);
+    $('autoSendToggle').checked = Boolean(r.autoSendEnabled);
+    updateArBadge(Boolean(r.autoReplyEnabled));
+    $('statReplies').textContent = r.statReplies || '0';
+    $('statListings').textContent = r.statListings || '0';
 
-  if (!serverUrl) {
-    setStatus('arStatus', 'Set your Server URL in Settings first.', 'info');
+    const awayOn = Boolean(r.awayEnabled);
+    $('awayToggle').checked = awayOn;
+    $('awaySettings').style.display = awayOn ? 'block' : 'none';
+    if (r.awayStart) $('awayStart').value = r.awayStart;
+    if (r.awayEnd)   $('awayEnd').value   = r.awayEnd;
+    if (r.awayMessage) $('awayMessage').value = r.awayMessage;
+
+    if (!serverUrl) setStatus('arStatus', 'Set your Server URL in Settings first.', 'info');
+
+    if (serverUrl) {
+      fetch(`${serverUrl}/api/stats`).then(r => r.json()).then(d => {
+        if (d.listingsCount !== undefined) $('statListings').textContent = d.listingsCount;
+        if (d.pendingReplies !== undefined && d.pendingReplies > 0) {
+          setStatus('arStatus', `${d.pendingReplies} replies waiting in admin queue.`, 'info');
+        }
+      }).catch(() => {});
+    }
   }
-});
+);
 
 function updateArBadge(on) {
   const badge = $('arBadge');
@@ -74,6 +92,23 @@ $('autoReplyToggle').addEventListener('change', (e) => {
 
 $('autoSendToggle').addEventListener('change', (e) => {
   chrome.storage.local.set({ autoSendEnabled: e.target.checked });
+});
+
+/* ── Away mode ─────────────────────────────────────────── */
+$('awayToggle').addEventListener('change', (e) => {
+  const on = e.target.checked;
+  chrome.storage.local.set({ awayEnabled: on });
+  $('awaySettings').style.display = on ? 'block' : 'none';
+});
+
+$('saveAway').addEventListener('click', () => {
+  chrome.storage.local.set({
+    awayStart: $('awayStart').value,
+    awayEnd: $('awayEnd').value,
+    awayMessage: $('awayMessage').value.trim() || "Thanks for your message! I'm away right now but will get back to you shortly.",
+  });
+  setStatus('arStatus', 'Away settings saved!', 'success');
+  setTimeout(() => clearStatus('arStatus'), 2500);
 });
 
 /* ── Open inbox ────────────────────────────────────────── */

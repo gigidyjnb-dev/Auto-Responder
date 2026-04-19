@@ -80,6 +80,7 @@ const { getById, getPending, markApproved, markRejected, markSent } = require('.
 const { getPlatforms } = require('./platforms');
 const { parseProductDescription } = require('./productParser');
 const { generateResponse } = require('./responseEngine');
+const { routeMessage } = require('./intentRouter');
 const { getSenderListing, registerEventIfNew, setSenderListing, saveCredentials, getCredentials, clearCredentials, markCredentialsUsed, recordSyncSuccess } = require('./db');
 const { deleteProfile, listProfiles, loadProfile, saveProfile } = require('./storage');
 const { encrypt, decrypt, getKeyConfigError } = require('./credentialManager');
@@ -842,14 +843,13 @@ app.post("/api/sync/facebook", setupLimiter, requireSetupAccess, async (req, res
 });
 
 app.post('/api/extension/reply', setupLimiter, async (req, res) => {
-  const { message, listingTitle, senderName, senderId } = req.body || {};
+  const { message, listingTitle, senderName } = req.body || {};
 
   if (!message || typeof message !== 'string' || !message.trim()) {
     return res.status(400).json({ error: 'message is required' });
   }
 
   const allListings = listProfiles();
-
   let bestProfile = null;
 
   if (listingTitle && allListings.length > 0) {
@@ -859,20 +859,33 @@ app.post('/api/extension/reply', setupLimiter, async (req, res) => {
       const hay = (row.title || '').toLowerCase().split(/\s+/);
       const overlap = needle.filter(w => hay.includes(w)).length;
       const score = needle.length > 0 ? overlap / needle.length : 0;
-      if (score > bestScore) {
-        bestScore = score;
-        bestProfile = loadProfile(row.id);
-      }
+      if (score > bestScore) { bestScore = score; bestProfile = loadProfile(row.id); }
     }
   }
 
-  if (!bestProfile) {
-    bestProfile = loadProfile(null);
-  }
+  if (!bestProfile) bestProfile = loadProfile(null);
 
   if (!bestProfile) {
     return res.status(404).json({
-      error: 'No listings synced yet. Open the extension, go to your Facebook Marketplace listings page, and click Sync.',
+      error: 'No listings synced yet. Go to your Facebook Marketplace listings page and click Sync.',
+    });
+  }
+
+  const routed = routeMessage({ message: message.trim(), profile: bestProfile, customerName: senderName || 'there' });
+
+  if (routed.skip) {
+    return res.json({ ok: true, reply: null, intent: routed.intent, skipped: true });
+  }
+
+  if (routed.fastReply) {
+    return res.json({
+      ok: true,
+      reply: routed.fastReply,
+      intent: routed.intent,
+      fastPath: true,
+      meta: routed.meta || null,
+      listingId: bestProfile.id,
+      listingTitle: bestProfile.title,
     });
   }
 
@@ -888,6 +901,8 @@ app.post('/api/extension/reply', setupLimiter, async (req, res) => {
     return res.json({
       ok: true,
       reply,
+      intent: routed.intent,
+      fastPath: false,
       listingId: bestProfile.id,
       listingTitle: bestProfile.title,
     });
@@ -895,6 +910,33 @@ app.post('/api/extension/reply', setupLimiter, async (req, res) => {
     console.error('extension/reply error:', err.message);
     return res.status(500).json({ error: 'Failed to generate reply.' });
   }
+});
+
+app.patch('/api/listings/:id/floor-price', (req, res) => {
+  const { id } = req.params;
+  const { minPrice } = req.body || {};
+
+  const profile = loadProfile(id);
+  if (!profile) return res.status(404).json({ error: 'Listing not found.' });
+
+  const parsed = parseFloat(String(minPrice).replace(/[^0-9.]/g, ''));
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return res.status(400).json({ error: 'Invalid minPrice.' });
+  }
+
+  profile.minPrice = parsed;
+  saveProfile(profile);
+  return res.json({ ok: true, id, minPrice: parsed });
+});
+
+app.get('/api/stats', (req, res) => {
+  const listings = listProfiles();
+  const pending = getPending();
+  return res.json({
+    ok: true,
+    listingsCount: listings.length,
+    pendingReplies: pending.length,
+  });
 });
 if (require.main === module) {
   app.listen(port, '0.0.0.0', () => {

@@ -1,41 +1,326 @@
-/* content-inbox.js — FB Marketplace Auto-Reply Content Script */
+/* content-inbox.js — Marketplace Auto-Responder Content Script v2
+ *
+ * Primary:  XHR/fetch GraphQL interception (survives Facebook UI updates)
+ * Fallback: MutationObserver DOM scanning
+ */
 (function () {
   'use strict';
 
   if (window.__arInit) return;
   window.__arInit = true;
 
-  let settings = { serverUrl: '', autoReplyEnabled: false, autoSendEnabled: false };
-  let processedIds = new Set();
-  let observer = null;
-  let suggestionEl = null;
+  /* ── Settings ─────────────────────────────────────────── */
+  let cfg = {
+    serverUrl: '',
+    autoReplyEnabled: false,
+    autoSendEnabled: false,
+    awayEnabled: false,
+    awayStart: '22:00',
+    awayEnd: '07:00',
+    awayMessage: "Thanks for your message! I'm away right now but will get back to you first thing in the morning.",
+    replyCount: 0,
+  };
 
-  function loadSettings(cb) {
-    chrome.storage.local.get(['serverUrl', 'autoReplyEnabled', 'autoSendEnabled'], (r) => {
-      settings = {
-        serverUrl: (r.serverUrl || '').replace(/\/$/, ''),
-        autoReplyEnabled: Boolean(r.autoReplyEnabled),
-        autoSendEnabled: Boolean(r.autoSendEnabled),
-      };
-      cb && cb();
+  const processedIds = new Set();
+
+  function loadCfg(cb) {
+    chrome.storage.local.get(
+      ['serverUrl', 'autoReplyEnabled', 'autoSendEnabled',
+       'awayEnabled', 'awayStart', 'awayEnd', 'awayMessage', 'replyCount'],
+      (r) => {
+        cfg = {
+          serverUrl: (r.serverUrl || '').replace(/\/$/, ''),
+          autoReplyEnabled: Boolean(r.autoReplyEnabled),
+          autoSendEnabled: Boolean(r.autoSendEnabled),
+          awayEnabled: Boolean(r.awayEnabled),
+          awayStart: r.awayStart || '22:00',
+          awayEnd: r.awayEnd || '07:00',
+          awayMessage: r.awayMessage || "Thanks for your message! I'm away right now but will get back to you first thing in the morning.",
+          replyCount: Number(r.replyCount) || 0,
+        };
+        cb && cb();
+      }
+    );
+  }
+
+  chrome.storage.onChanged.addListener(() => loadCfg());
+  loadCfg(init);
+
+  /* ── Away mode check ──────────────────────────────────── */
+  function isAwayTime() {
+    if (!cfg.awayEnabled) return false;
+    const now = new Date();
+    const [sh, sm] = cfg.awayStart.split(':').map(Number);
+    const [eh, em] = cfg.awayEnd.split(':').map(Number);
+    const cur = now.getHours() * 60 + now.getMinutes();
+    const start = sh * 60 + sm;
+    const end = eh * 60 + em;
+    return start > end
+      ? cur >= start || cur < end
+      : cur >= start && cur < end;
+  }
+
+  /* ── Stat tracking ────────────────────────────────────── */
+  function bumpReplyCount() {
+    cfg.replyCount++;
+    const today = new Date().toDateString();
+    chrome.storage.local.get(['replyDate', 'statReplies'], (r) => {
+      if (r.replyDate !== today) {
+        chrome.storage.local.set({ replyDate: today, statReplies: 1, replyCount: 1 });
+      } else {
+        const next = (Number(r.statReplies) || 0) + 1;
+        chrome.storage.local.set({ statReplies: next, replyCount: next });
+      }
     });
   }
 
-  chrome.storage.onChanged.addListener(() => {
-    loadSettings(() => {
-      if (!settings.autoReplyEnabled) removeSuggestion();
+  /* ── Message dedup ────────────────────────────────────── */
+  function msgId(text, sender) {
+    return `${sender}::${text.substring(0, 80)}`;
+  }
+
+  /* ── Get reply from server ────────────────────────────── */
+  async function fetchReply(messageText, senderName, listingTitle) {
+    const resp = await fetch(`${cfg.serverUrl}/api/extension/reply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: messageText, listingTitle, senderName }),
     });
-  });
+    return resp.json();
+  }
 
-  loadSettings(startWatching);
+  /* ── Handle a detected buyer message ─────────────────── */
+  async function handleMessage(messageText, senderName, listingTitle) {
+    if (!cfg.autoReplyEnabled || !cfg.serverUrl) return;
 
-  /* ── DOM helpers ─────────────────────────────────────── */
+    const id = msgId(messageText, senderName);
+    if (processedIds.has(id)) return;
+    processedIds.add(id);
 
+    if (isAwayTime()) {
+      await dispatchReply(cfg.awayMessage);
+      bumpReplyCount();
+      return;
+    }
+
+    let data;
+    try {
+      data = await fetchReply(messageText, senderName, listingTitle);
+    } catch (err) {
+      console.error('[AR] API error:', err.message);
+      processedIds.delete(id);
+      return;
+    }
+
+    if (!data?.reply || data.skipped) return;
+
+    bumpReplyCount();
+
+    if (cfg.autoSendEnabled) {
+      await dispatchReply(data.reply);
+    } else {
+      showSuggestion(data.reply, data.intent, () => dispatchReply(data.reply));
+    }
+  }
+
+  /* ── Chat input / send ────────────────────────────────── */
+  function findChatInput() {
+    const sel = [
+      'div[aria-label="Message"][contenteditable="true"]',
+      'div[role="textbox"][contenteditable="true"]',
+      'div[aria-label*="message" i][contenteditable="true"]',
+      'div[contenteditable="true"][data-lexical-editor="true"]',
+    ];
+    for (const s of sel) {
+      const el = document.querySelector(s);
+      if (el) return el;
+    }
+    return null;
+  }
+
+  function findSendBtn() {
+    const sel = [
+      'div[aria-label="Send"][role="button"]',
+      'button[aria-label="Send"]',
+      '[data-testid="send-button"]',
+    ];
+    for (const s of sel) {
+      const el = document.querySelector(s);
+      if (el) return el;
+    }
+    return null;
+  }
+
+  async function dispatchReply(text) {
+    const input = findChatInput();
+    if (!input) { console.warn('[AR] Input not found'); return; }
+
+    input.focus();
+    input.click();
+    await sleep(150);
+
+    input.innerHTML = '';
+    document.execCommand('insertText', false, text);
+    input.dispatchEvent(new InputEvent('input', { bubbles: true, data: text }));
+
+    await sleep(500);
+
+    const btn = findSendBtn();
+    if (btn) {
+      btn.click();
+    } else {
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+    }
+    await sleep(200);
+  }
+
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  /* ── Suggestion overlay ───────────────────────────────── */
+  const INTENT_LABELS = {
+    availability_check: '✅ Availability',
+    price_offer:        '💰 Price Offer',
+    shipping_question:  '📦 Shipping',
+    meetup_question:    '📍 Meetup',
+    item_question:      '❓ Item Question',
+    greeting:           '👋 Greeting',
+    general:            '💬 General',
+  };
+
+  let suggestionEl = null;
+
+  function showSuggestion(reply, intent, onSend) {
+    if (suggestionEl) suggestionEl.remove();
+
+    const label = INTENT_LABELS[intent] || '💬 Reply';
+
+    suggestionEl = document.createElement('div');
+    suggestionEl.id = '__ar-suggestion';
+    Object.assign(suggestionEl.style, {
+      position: 'fixed', bottom: '88px', right: '16px', zIndex: '999999',
+      background: '#fff', border: '2px solid #0066ff', borderRadius: '12px',
+      boxShadow: '0 8px 32px rgba(0,102,255,0.18)', padding: '14px 16px',
+      maxWidth: '340px', fontFamily: 'system-ui,sans-serif', fontSize: '13px',
+      animation: 'arSlideIn .25s ease',
+    });
+
+    const style = document.createElement('style');
+    style.textContent = `@keyframes arSlideIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}`;
+    document.head.appendChild(style);
+
+    suggestionEl.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span style="font-weight:700;color:#0066ff;font-size:11px;text-transform:uppercase;letter-spacing:.5px">🤖 Auto-Reply · ${label}</span>
+        <span id="__ar-close" style="cursor:pointer;color:#aaa;font-size:16px;line-height:1">×</span>
+      </div>
+      <div style="color:#222;line-height:1.5;margin-bottom:12px;white-space:pre-wrap;max-height:120px;overflow-y:auto">${escHtml(reply)}</div>
+      <div style="display:flex;gap:8px">
+        <button id="__ar-send" style="flex:1;padding:8px;background:#0066ff;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:13px;font-weight:700">✓ Send</button>
+        <button id="__ar-edit" style="flex:1;padding:8px;background:#f0f4ff;color:#0066ff;border:1px solid #d0e0ff;border-radius:7px;cursor:pointer;font-size:13px">Edit</button>
+        <button id="__ar-skip" style="padding:8px 12px;background:#f5f5f5;color:#666;border:none;border-radius:7px;cursor:pointer;font-size:13px">Skip</button>
+      </div>
+    `;
+
+    document.body.appendChild(suggestionEl);
+
+    suggestionEl.querySelector('#__ar-close').onclick = () => suggestionEl?.remove();
+    suggestionEl.querySelector('#__ar-skip').onclick = () => suggestionEl?.remove();
+    suggestionEl.querySelector('#__ar-send').onclick = () => { suggestionEl?.remove(); onSend(); };
+    suggestionEl.querySelector('#__ar-edit').onclick = () => {
+      const input = findChatInput();
+      if (input) {
+        input.focus();
+        document.execCommand('insertText', false, reply);
+        input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+      }
+      suggestionEl?.remove();
+    };
+  }
+
+  function escHtml(str) {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  /* ── PRIMARY: XHR / fetch interception ───────────────── */
+  function installNetworkInterceptor() {
+    const _fetch = window.fetch;
+    window.fetch = async function (...args) {
+      const res = await _fetch.apply(this, args);
+      const url = (typeof args[0] === 'string' ? args[0] : args[0]?.url) || '';
+      if (url.includes('/api/graphql') || url.includes('graph.facebook.com')) {
+        try {
+          const clone = res.clone();
+          clone.text().then(parseGraphQLPayload).catch(() => {});
+        } catch {}
+      }
+      return res;
+    };
+
+    const _open = XMLHttpRequest.prototype.open;
+    const _send = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.open = function (method, url) {
+      this.__arUrl = url;
+      return _open.apply(this, arguments);
+    };
+    XMLHttpRequest.prototype.send = function (body) {
+      if (this.__arUrl?.includes('/api/graphql')) {
+        this.addEventListener('load', function () {
+          try { parseGraphQLPayload(this.responseText); } catch {}
+        });
+      }
+      return _send.apply(this, arguments);
+    };
+  }
+
+  const seenGraphQLMsgIds = new Set();
+
+  function parseGraphQLPayload(text) {
+    if (!cfg.autoReplyEnabled || !cfg.serverUrl) return;
+    if (!text || !text.includes('message_body')) return;
+
+    const listingTitle = getListingTitle();
+
+    let chunks;
+    try {
+      chunks = text.split('\n').map(l => JSON.parse(l));
+    } catch {
+      try { chunks = [JSON.parse(text)]; } catch { return; }
+    }
+
+    for (const chunk of chunks) {
+      extractMessages(chunk, listingTitle);
+    }
+  }
+
+  function extractMessages(obj, listingTitle, depth = 0) {
+    if (!obj || typeof obj !== 'object' || depth > 12) return;
+
+    if (obj.message_body && obj.sender && obj.message_id) {
+      const msgId2 = obj.message_id;
+      const isMe = obj.sender?.is_viewer_sender === true;
+      if (!isMe && !seenGraphQLMsgIds.has(msgId2)) {
+        seenGraphQLMsgIds.add(msgId2);
+        const text = obj.message_body.text || obj.message_body;
+        const sender = obj.sender?.name || 'Buyer';
+        if (typeof text === 'string' && text.trim()) {
+          handleMessage(text.trim(), sender, listingTitle);
+        }
+      }
+      return;
+    }
+
+    for (const val of Object.values(obj)) {
+      if (val && typeof val === 'object') {
+        extractMessages(val, listingTitle, depth + 1);
+      }
+    }
+  }
+
+  /* ── FALLBACK: MutationObserver DOM scan ─────────────── */
   function getListingTitle() {
     const candidates = [
       document.querySelector('[data-testid="marketplace-conversation-listing-title"]'),
       document.querySelector('h2[dir="auto"]'),
-      document.querySelector('[aria-label*="listing" i] span'),
       document.querySelector('[role="main"] h1'),
       document.querySelector('[role="main"] h2'),
     ];
@@ -43,229 +328,59 @@
       const t = el?.textContent?.trim();
       if (t && t.length > 2 && t.length < 150) return t;
     }
-    return '';
+    return document.title.replace(/\s*[\|\-–].*$/, '').trim() || '';
   }
 
-  function getSenderName(msgEl) {
-    const row = msgEl.closest('[role="row"], [role="listitem"], li') || msgEl.parentElement;
-    if (!row) return 'Buyer';
-    const nameEl = row.querySelector('[data-testid*="author"], [class*="author"], span[dir="auto"]:first-child');
-    const name = nameEl?.textContent?.trim();
-    return name && name.length < 60 ? name : 'Buyer';
-  }
-
-  function isOutgoing(msgEl) {
-    const container = msgEl.closest('[role="row"], [role="listitem"], li') || msgEl;
+  function isOutgoing(el) {
+    const container = el.closest('[role="row"], [role="listitem"], li') || el;
+    const mainRect = document.querySelector('[role="main"]')?.getBoundingClientRect();
     const rect = container.getBoundingClientRect();
-    const chatRect = document.querySelector('[role="main"]')?.getBoundingClientRect();
-    if (chatRect && rect.width > 0) {
+    if (mainRect && rect.width > 0) {
       const center = rect.left + rect.width / 2;
-      if (center > chatRect.left + chatRect.width * 0.55) return true;
+      if (center > mainRect.left + mainRect.width * 0.55) return true;
     }
-    const html = container.innerHTML || '';
-    if (/seen|delivered|check.*mark/i.test(html)) return true;
-    const styles = window.getComputedStyle(container);
-    if (styles.textAlign === 'right') return true;
     return false;
   }
 
-  function getMessageText(el) {
-    return el?.textContent?.trim() || '';
-  }
-
-  function messageId(text, sender) {
-    return `${sender}::${text.substring(0, 80)}`;
-  }
-
-  /* ── Chat input helpers ───────────────────────────────── */
-
-  function findChatInput() {
-    const selectors = [
-      'div[aria-label="Message"][contenteditable="true"]',
-      'div[role="textbox"][contenteditable="true"]',
-      'div[aria-label*="message" i][contenteditable="true"]',
-      'div[contenteditable="true"][data-lexical-editor="true"]',
-      'div[contenteditable="true"]',
-    ];
-    for (const s of selectors) {
-      const el = document.querySelector(s);
-      if (el) return el;
-    }
-    return null;
-  }
-
-  function findSendButton() {
-    const selectors = [
-      'div[aria-label="Send"][role="button"]',
-      'button[aria-label="Send"]',
-      '[data-testid="send-button"]',
-    ];
-    for (const s of selectors) {
-      const el = document.querySelector(s);
-      if (el) return el;
-    }
-    return null;
-  }
-
-  async function typeAndSend(text) {
-    const input = findChatInput();
-    if (!input) {
-      console.warn('[AR] Chat input not found');
-      return false;
-    }
-
-    input.focus();
-    input.click();
-
-    await sleep(200);
-
-    input.innerHTML = '';
-    document.execCommand('insertText', false, text);
-
-    input.dispatchEvent(new InputEvent('input', { bubbles: true, data: text }));
-
-    await sleep(600);
-
-    const sendBtn = findSendButton();
-    if (sendBtn) {
-      sendBtn.click();
-    } else {
-      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
-    }
-
-    await sleep(300);
-    return true;
-  }
-
-  function sleep(ms) {
-    return new Promise((r) => setTimeout(r, ms));
-  }
-
-  /* ── Suggestion overlay (suggest mode) ───────────────── */
-
-  function showSuggestion(reply, onSend, onDismiss) {
-    removeSuggestion();
-
-    suggestionEl = document.createElement('div');
-    suggestionEl.id = '__ar-suggestion';
-    suggestionEl.style.cssText = [
-      'position:fixed;bottom:80px;right:16px;z-index:99999',
-      'background:#fff;border:1px solid #0066ff;border-radius:10px',
-      'box-shadow:0 4px 20px rgba(0,0,0,0.18);padding:14px 16px',
-      'max-width:340px;font-family:system-ui,sans-serif;font-size:13px',
-    ].join(';');
-
-    const header = document.createElement('div');
-    header.style.cssText = 'font-weight:700;color:#0066ff;margin-bottom:8px;font-size:12px;text-transform:uppercase;letter-spacing:.5px';
-    header.textContent = '🤖 Auto-Reply Suggestion';
-
-    const body = document.createElement('div');
-    body.style.cssText = 'color:#222;line-height:1.5;margin-bottom:12px;white-space:pre-wrap';
-    body.textContent = reply;
-
-    const btnRow = document.createElement('div');
-    btnRow.style.cssText = 'display:flex;gap:8px';
-
-    const sendBtn = document.createElement('button');
-    sendBtn.textContent = '✓ Send';
-    sendBtn.style.cssText = 'flex:1;padding:7px;background:#0066ff;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600';
-    sendBtn.onclick = () => { removeSuggestion(); onSend && onSend(); };
-
-    const skipBtn = document.createElement('button');
-    skipBtn.textContent = 'Skip';
-    skipBtn.style.cssText = 'flex:1;padding:7px;background:#f0f0f0;color:#333;border:none;border-radius:6px;cursor:pointer;font-size:13px';
-    skipBtn.onclick = () => { removeSuggestion(); onDismiss && onDismiss(); };
-
-    btnRow.appendChild(sendBtn);
-    btnRow.appendChild(skipBtn);
-    suggestionEl.appendChild(header);
-    suggestionEl.appendChild(body);
-    suggestionEl.appendChild(btnRow);
-    document.body.appendChild(suggestionEl);
-  }
-
-  function removeSuggestion() {
-    if (suggestionEl) {
-      suggestionEl.remove();
-      suggestionEl = null;
-    }
-  }
-
-  /* ── Core message processor ───────────────────────────── */
-
-  async function processMessage(text, sender, listingTitle) {
-    if (!settings.serverUrl || !settings.autoReplyEnabled) return;
-
-    const id = messageId(text, sender);
-    if (processedIds.has(id)) return;
-    processedIds.add(id);
-
-    let data;
-    try {
-      const resp = await fetch(`${settings.serverUrl}/api/extension/reply`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, listingTitle, senderName: sender }),
-      });
-      data = await resp.json();
-    } catch (err) {
-      console.error('[AR] API error:', err);
-      return;
-    }
-
-    if (!data?.reply) return;
-
-    if (settings.autoSendEnabled) {
-      await typeAndSend(data.reply);
-    } else {
-      showSuggestion(data.reply, () => typeAndSend(data.reply), () => {});
-    }
-  }
-
-  /* ── Message scanner ──────────────────────────────────── */
-
-  function scanMessages() {
-    if (!settings.autoReplyEnabled || !settings.serverUrl) return;
+  function domScan() {
+    if (!cfg.autoReplyEnabled || !cfg.serverUrl) return;
 
     const listingTitle = getListingTitle();
-
-    const msgEls = document.querySelectorAll(
-      'div[dir="auto"][class*="x1iorvi4"], div[dir="auto"][class*="x193iq5w"], div[dir="auto"][data-ad-preview="message"], div[dir="auto"]'
-    );
-
+    const msgEls = document.querySelectorAll('div[dir="auto"]');
     const candidates = [];
-    msgEls.forEach((el) => {
-      const text = getMessageText(el);
-      if (!text || text.length < 2 || text.length > 1000) return;
+
+    msgEls.forEach(el => {
+      const text = el.textContent?.trim();
+      if (!text || text.length < 2 || text.length > 800) return;
       if (isOutgoing(el)) return;
       candidates.push({ el, text });
     });
 
-    if (candidates.length === 0) return;
+    if (!candidates.length) return;
 
     const last = candidates[candidates.length - 1];
-    const sender = getSenderName(last.el);
-    const id = messageId(last.text, sender);
-
+    const id = msgId(last.text, 'dom');
     if (!processedIds.has(id)) {
-      processMessage(last.text, sender, listingTitle);
+      handleMessage(last.text, 'Buyer', listingTitle);
     }
   }
 
-  /* ── MutationObserver ─────────────────────────────────── */
+  let domObserver = null;
 
-  function startWatching() {
-    if (observer) observer.disconnect();
-
-    observer = new MutationObserver(() => {
-      if (settings.autoReplyEnabled) {
-        clearTimeout(window.__arScanTimer);
-        window.__arScanTimer = setTimeout(scanMessages, 800);
-      }
+  function startDomFallback() {
+    if (domObserver) domObserver.disconnect();
+    domObserver = new MutationObserver(() => {
+      if (!cfg.autoReplyEnabled) return;
+      clearTimeout(window.__arScanTimer);
+      window.__arScanTimer = setTimeout(domScan, 900);
     });
+    domObserver.observe(document.body, { childList: true, subtree: true });
+    domScan();
+  }
 
-    observer.observe(document.body, { childList: true, subtree: true });
-
-    scanMessages();
+  /* ── Bootstrap ────────────────────────────────────────── */
+  function init() {
+    installNetworkInterceptor();
+    startDomFallback();
   }
 })();

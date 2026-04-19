@@ -180,8 +180,37 @@
 
     <div id="arStatus"></div>
 
-    <p style="font-size:11px;color:#999;line-height:1.5;margin-top:8px">
-      Keep this page open in a tab. The extension watches for new buyer messages and responds automatically.
+    <div class="divider"></div>
+
+    <div class="toggle-row">
+      <div>
+        <div class="toggle-label">Away Mode</div>
+        <div class="toggle-sub">Send canned reply outside business hours</div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="awayToggle">
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div id="awaySettings" style="display:none;background:#fff;border:1px solid #eee;border-radius:8px;padding:12px;margin-bottom:10px">
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <div style="flex:1">
+          <label for="awayStart">Away from</label>
+          <input type="time" id="awayStart" value="22:00" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        </div>
+        <div style="flex:1">
+          <label for="awayEnd">Until</label>
+          <input type="time" id="awayEnd" value="07:00" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:13px">
+        </div>
+      </div>
+      <label for="awayMessage">Away message</label>
+      <textarea id="awayMessage" rows="3" style="width:100%;padding:7px;border:1px solid #ddd;border-radius:6px;font-size:12px;resize:vertical;font-family:inherit">Thanks for your message! I'm away right now but will get back to you first thing in the morning.</textarea>
+      <button class="primary" id="saveAway" style="margin-top:6px">Save Away Settings</button>
+    </div>
+
+    <p style="font-size:11px;color:#999;line-height:1.5">
+      Keep FB Marketplace inbox open in a tab. The extension watches for new buyer messages and responds automatically.
     </p>
   </div>
 
