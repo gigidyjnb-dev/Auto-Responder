@@ -1,4 +1,4 @@
-// Facebook Marketplace scraper
+// Facebook Marketplace Scraper
 // Navigate to: facebook.com/marketplace/you/selling
 // Scroll down to load all listings, then click Sync in extension
 
@@ -6,157 +6,118 @@
   const listings = [];
   const seen = new Set();
 
-  // Selectors for current FB Marketplace (2025/2026)
-  const listingSelectors = [
-    '[data-pagelet="MarketplaceSellingFeed"] a[href*="/marketplace/item/"]',
-    'a[href*="/marketplace/item/"][role="link"]',
-    'div[role="article"][href*="/marketplace/item/"]',
-    'div[aria-label*="Listing"] a[href*="/marketplace/item/"]',
-    'div[role="main"] a[href*="/marketplace/item/"]',
-  ];
-
-  function findListings() {
-    let elements = [];
-    for (const sel of listingSelectors) {
-      elements = [...elements, ...document.querySelectorAll(sel)];
-    }
-    // Also check parent containers
-    const containers = document.querySelectorAll('div[role="article"], li[role="presentation"], div[data-testid]');
-    containers.forEach(c => {
-      const links = c.querySelectorAll('a[href*="/marketplace/item/"]');
-      links.forEach(l => elements.push(l));
-    });
-    return [...new Set(elements)];
-  }
-
   function wait(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   async function scrollToLoadAll() {
-    let lastCount = 0;
-    let noChange = 0;
-
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 15; i++) {
       window.scrollTo(0, document.body.scrollHeight);
-      await wait(1500);
-
-      const count = findListings().length;
-      if (count === lastCount) {
-        noChange++;
-        if (noChange >= 3) break;
-      } else {
-        noChange = 0;
-      }
-      lastCount = count;
+      await wait(1200);
     }
-
     window.scrollTo(0, 0);
     await wait(500);
   }
 
-  function extractListing(linkEl) {
-    const card = linkEl.closest('[role="article"]') || linkEl.closest('div') || linkEl.parentElement;
-    if (!card) return null;
+  function extractListings() {
+    // Broad approach: get ALL links that contain /marketplace/item/
+    const allLinks = Array.from(document.querySelectorAll('a[href*="/marketplace/item/"]'));
+    
+    console.log('[FB Scraper] Found ' + allLinks.length + ' marketplace item links');
 
-    const href = linkEl.href || linkEl.closest('a')?.href;
-    if (!href || !href.includes('/marketplace/item/')) return null;
+    for (const link of allLinks) {
+      try {
+        const url = link.href;
+        if (!url || !url.includes('/marketplace/item/')) continue;
 
-    // Extract ID from URL
-    const match = href.match(/\/item\/([^\/]+)/);
-    const originalId = match ? match[1] : null;
-    if (seen.has(originalId)) return null;
-    seen.add(originalId);
+        const id = url.split('/item/')[1]?.split('/')[0];
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
 
-    // Find title - look in multiple places
-    let title = '';
-    const titleEl = card.querySelector('[data-testid*="title"] span, span[dir="auto"], div[role="heading"], span[class*="title"]');
-    if (titleEl) title = titleEl.textContent?.trim();
+        // Get the card/container this link belongs to
+        let card = link.closest('div') || link.parentElement;
+        if (!card) card = link;
 
-    // Fallback: look for text that looks like a title
-    if (!title) {
-      const textEls = card.querySelectorAll('span, div');
-      for (const el of textEls) {
-        const txt = el.textContent?.trim();
-        if (txt && txt.length > 3 && txt.length < 100 && !txt.match(/^[\$\d]/) && !txt.includes('·')) {
-          title = txt;
-          break;
+        // Get title - try multiple ways
+        let title = '';
+        
+        // Method 1: Look for any text that looks like a title near this link
+        const parentText = card.textContent || '';
+        const lines = parentText.split(/\n/).map(l => l.trim()).filter(l => l);
+        
+        // Find a line that isn't just a price or short UI text
+        for (const line of lines) {
+          if (line.length > 5 && line.length < 120 && 
+              !line.match(/^\$[\d,]/) && 
+              !line.match(/^(edit|delete|share|boost|active|sold|pending)$/i)) {
+            title = line;
+            break;
+          }
         }
+
+        // Method 2: Try getting text content directly from nearby elements
+        if (!title) {
+          const siblings = card.querySelectorAll('span, div, p');
+          for (const el of siblings) {
+            const txt = el.textContent?.trim();
+            if (txt && txt.length > 5 && txt.length < 120 && !txt.match(/^\$/)) {
+              title = txt;
+              break;
+            }
+          }
+        }
+
+        // Method 3: Fallback to link's own text
+        if (!title && link.textContent) {
+          title = link.textContent.trim();
+        }
+
+        if (!title || title.length < 5) continue;
+
+        // Get price
+        let price = '';
+        const cardText = card.textContent || '';
+        const priceMatch = cardText.match(/\$[\d,]+(?:\.\d{2})?/);
+        if (priceMatch) price = priceMatch[0];
+
+        // Get image
+        let images = [];
+        const img = card.querySelector('img');
+        if (img && img.src && !img.src.includes('blank')) {
+          images = [img.src];
+        }
+
+        listings.push({
+          title: title.substring(0, 150),
+          price: price || '',
+          condition: '',
+          location: '',
+          images,
+          url: url,
+          originalId: id,
+          platform: 'facebook_marketplace'
+        });
+
+      } catch (e) {
+        // Skip broken elements
       }
     }
 
-    // Find price
-    let price = '';
-    const priceEl = card.querySelector('span:contains("$"), div:contains("$"), [data-testid*="price"]');
-    if (priceEl) {
-      const txt = priceEl.textContent?.trim();
-      if (txt?.match(/^\$[\d,]+/)) price = txt;
-    }
-    if (!price) {
-      const spans = card.querySelectorAll('span, div');
-      for (const el of spans) {
-        const txt = el.textContent?.trim();
-        if (txt?.match(/^\$\d+[\d,]*\.?\d*$/)) {
-          price = txt;
-          break;
-        }
-      }
-    }
-
-    // Find image
-    let images = [];
-    const img = card.querySelector('img');
-    if (img && img.src) {
-      let src = img.src;
-      // Get higher res if possible
-      if (src.includes('_n.jpg')) src = src.replace('_n.jpg', '_o.jpg');
-      if (src.includes('_n.')) src = src.replace(/_n\./, '_o.');
-      images = [src];
-    }
-
-    // Find location
-    let location = '';
-    const locEl = card.querySelector('[data-testid*="location"], span:contains("·")');
-    if (locEl) location = locEl.textContent?.trim();
-
-    if (!title) return null;
-
-    return {
-      title: title.substring(0, 150),
-      price: price || '',
-      condition: '',
-      location: location || '',
-      images,
-      url: href,
-      originalId,
-      platform: 'facebook_marketplace'
-    };
+    return listings;
   }
 
   async function scrape() {
     await scrollToLoadAll();
     await wait(1000);
-
-    const links = findListings();
-    console.log('Found', links.length, 'listing links');
-
-    for (const link of links) {
-      const listing = extractListing(link);
-      if (listing) {
-        listings.push(listing);
-      }
-    }
-
-    console.log('Extracted', listings.length, 'valid listings');
-    return listings;
+    return extractListings();
   }
 
-  scrape().then(results => {
-    console.log('Facebook Marketplace scraper results:', results);
+  // Run and return results
+  return scrape().then(results => {
+    console.log('[FB Scraper] Extracted ' + results.length + ' listings');
     return results;
   }).catch(err => {
-    console.error('Scraper error:', err);
+    console.error('[FB Scraper] Error:', err);
     return [];
   });
-
 })();
