@@ -8,7 +8,7 @@ class FacebookScraper {
 
   async launchBrowser() {
     return await puppeteer.launch({
-      headless: 'new',
+      headless: true,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -24,10 +24,14 @@ class FacebookScraper {
     const started = Date.now();
     while (Date.now() - started < timeoutMs) {
       for (const selector of selectors) {
-        const handle = await page.$(selector);
-        if (handle) return selector;
+        try {
+          const handle = await page.$(selector);
+          if (handle) return selector;
+        } catch (err) {
+          // ignore selector errors during search
+        }
       }
-      await page.waitForTimeout(200);
+      await new Promise(r => setTimeout(r, 400));
     }
     return null;
   }
@@ -41,7 +45,7 @@ class FacebookScraper {
       } catch (err) {
         lastErr = err;
         if (i < attempts) {
-          await page.waitForTimeout(1200 * i);
+          await new Promise(r => setTimeout(r, 2000 * i));
         }
       }
     }
@@ -50,28 +54,39 @@ class FacebookScraper {
 
   async clickConsentIfPresent(page) {
     await page.evaluate(() => {
-      const candidates = Array.from(document.querySelectorAll('button, div[role="button"]'));
+      const candidates = Array.from(document.querySelectorAll('button, div[role="button"], span'));
       const target = candidates.find((el) => {
         const text = (el.textContent || '').trim().toLowerCase();
         return (
-          text.includes('allow all cookies') ||
-          text.includes('accept all') ||
-          text.includes('allow essential and optional cookies')
+          text === 'allow all cookies' ||
+          text === 'accept all' ||
+          text === 'allow essential and optional cookies' ||
+          text === 'yes, allow' ||
+          text.includes('accept cookies')
         );
       });
-      if (target) target.click();
+      if (target) {
+        target.click();
+        return true;
+      }
+      return false;
     });
+    // Brief wait for modal to fade out
+    await new Promise(r => setTimeout(r, 1000));
   }
 
   async performLogin(page, email, password) {
     const emailSelectors = [
+      '#m_login_email',
       '#email',
       'input[name="email"]',
+      'input[type="email"]',
       'input[autocomplete="username"]',
       'input[type="text"][name="login"]',
     ];
 
     const passwordSelectors = [
+      '#m_login_password',
       '#pass',
       'input[name="pass"]',
       'input[type="password"]',
@@ -79,8 +94,9 @@ class FacebookScraper {
 
     const loginSelectors = [
       'button[name="login"]',
-      '[data-testid="royal_login_button"]',
+      'button[value="Log In"]',
       'button[type="submit"]',
+      '[data-testid="royal_login_button"]',
     ];
 
     const emailSelector = await this.findFirstSelector(page, emailSelectors, 20000);
@@ -89,6 +105,12 @@ class FacebookScraper {
 
     if (!emailSelector || !passwordSelector || !loginSelector) {
       const currentUrl = page.url();
+      const pageTitle = await page.title().catch(() => 'unknown');
+      const bodySnippet = await page.evaluate(() => document.body.innerText.substring(0, 300)).catch(() => '');
+      
+      console.error(`[facebook-scraper] UI Discovery Failed. URL: ${currentUrl}, Title: ${pageTitle}`);
+      console.error(`[facebook-scraper] Page Content Snippet: ${bodySnippet.replace(/\n/g, ' ')}`);
+
       throw new Error(`FACEBOOK_LOGIN_FORM_NOT_FOUND: Could not locate Facebook login fields. url=${currentUrl}`);
     }
 
@@ -105,7 +127,7 @@ class FacebookScraper {
       page.click(loginSelector),
     ]);
 
-    await page.waitForTimeout(1400);
+    await new Promise(r => setTimeout(r, 1400));
 
     const currentUrl = page.url();
     if (currentUrl.includes('checkpoint') || currentUrl.includes('twofactor') || currentUrl.includes('confirm')) {
@@ -123,20 +145,33 @@ class FacebookScraper {
 
     try {
       const page = await browser.newPage();
+
+      // Mask automation signatures
+      await page.evaluateOnNewDocument(() => {
+        Object.defineProperty(navigator, 'webdriver', { get: () => false });
+        window.chrome = { runtime: {} };
+        Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+        Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3] });
+      });
+
       page.setDefaultNavigationTimeout(45000);
       await page.setUserAgent(this.userAgent);
       await page.setViewport(this.viewport);
 
       const loginUrls = [
-        'https://www.facebook.com/login',
-        'https://www.facebook.com/',
+        { url: 'https://m.facebook.com/login', ua: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1' },
+        { url: 'https://www.facebook.com/login', ua: this.userAgent },
       ];
 
       let loginError = null;
-      for (const loginUrl of loginUrls) {
+      for (const config of loginUrls) {
         try {
-          await this.gotoWithRetry(page, loginUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }, 2);
+          if (config.ua) {
+            await page.setUserAgent(config.ua);
+          }
+          await this.gotoWithRetry(page, config.url, { waitUntil: 'networkidle2', timeout: 35000 }, 2);
           await this.clickConsentIfPresent(page);
+          await new Promise(r => setTimeout(r, 1000));
           await this.performLogin(page, email, password);
           loginError = null;
           break;
@@ -146,7 +181,7 @@ class FacebookScraper {
           if (msg.includes('FACEBOOK_LOGIN_FAILED') || msg.includes('FACEBOOK_2FA_REQUIRED')) {
             break;
           }
-          await page.waitForTimeout(1000);
+          await new Promise(r => setTimeout(r, 1000));
         }
       }
 
@@ -161,7 +196,7 @@ class FacebookScraper {
         3
       );
 
-      await page.waitForTimeout(3500);
+      await new Promise(r => setTimeout(r, 3500));
 
       const listItemSelector = await this.findFirstSelector(
         page,
@@ -179,7 +214,7 @@ class FacebookScraper {
 
       for (let i = 0; i < maxScrolls; i++) {
         await page.evaluate(() => window.scrollBy(0, window.innerHeight * 0.8));
-        await page.waitForTimeout(1500);
+        await new Promise(r => setTimeout(r, 1500));
 
         const newHeight = await page.evaluate(() => document.body.scrollHeight);
         if (newHeight === lastHeight) {

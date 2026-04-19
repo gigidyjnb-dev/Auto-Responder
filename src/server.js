@@ -87,6 +87,12 @@ const { encrypt, decrypt, getKeyConfigError } = require('./credentialManager');
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
+const runtimeCommit =
+  process.env.RAILWAY_GIT_COMMIT_SHA ||
+  process.env.RENDER_GIT_COMMIT ||
+  process.env.SOURCE_VERSION ||
+  'local-dev';
+const runtimeTag = 'fb-sync-hardening-v3';
 
 // CRITICAL FIX: Static file serving MUST be first in middleware chain
 app.use(express.static(path.join(__dirname, '..', 'public')));
@@ -296,10 +302,18 @@ function resolveListingId({ requestedListingId, platform, senderId }) {
 }
 
 function sendHealth(_req, res) {
-  res.status(200).json({ ok: true });
+  res.status(200).json({ ok: true, runtimeCommit, runtimeTag });
 }
 
-// Railway / platforms often default to `/health`; keep `/api/health` for render.yaml parity.
+app.get('/api/runtime', (_req, res) => {
+  res.status(200).json({
+    ok: true,
+    runtimeCommit,
+    runtimeTag,
+    node: process.version,
+  });
+});
+
 app.get('/health', sendHealth);
 app.get('/api/health', sendHealth);
 

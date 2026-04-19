@@ -49,6 +49,14 @@ async function main() {
   try {
     const page = await browser.newPage();
 
+    // Anti-detection: mask webdriver
+    await page.evaluateOnNewDocument(() => {
+      Object.defineProperty(navigator, 'webdriver', { get: () => false });
+      window.chrome = { runtime: {} };
+      Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+      Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3] });
+    });
+
     // Set realistic viewport and user agent
     await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
     await page.setViewport({ width: 1280, height: 800 });
@@ -100,18 +108,31 @@ function getLoginUrl(platform) {
   return urls[platform.toLowerCase()] || `https://${platform}.com/login`;
 }
 
+async function findFirstSelector(page, selectors, timeoutMs = 10000) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    for (const selector of selectors) {
+      const handle = await page.$(selector);
+      if (handle) return selector;
+    }
+    await new Promise(r => setTimeout(r, 200));
+  }
+  return null;
+}
+
+function asArray(input) {
+  return Array.isArray(input) ? input : [input];
+}
+
 async function login(page, platform, email, password) {
   console.log(`Logging into ${platform}...`);
+  await new Promise(r => setTimeout(r, 2000));
 
-  // Wait for login page to load
-  await page.waitForTimeout(2000);
-
-  // Platform-specific login selectors
   const selectors = {
     facebook: {
-      email: '#email',
-      pass: '#pass',
-      submit: 'button[name="login"]'
+      email: ['#email', 'input[name="email"]', 'input[autocomplete="username"]'],
+      pass: ['#pass', 'input[name="pass"]', 'input[type="password"]'],
+      submit: ['button[name="login"]', '[data-testid="royal_login_button"]', 'button[type="submit"]']
     },
     ebay: {
       email: '#userid',
@@ -156,28 +177,30 @@ async function login(page, platform, email, password) {
   }
 
   try {
-    // Enter email
-    await page.waitForSelector(sel.email, { timeout: 10000 });
-    await page.focus(sel.email);
-    await page.click(sel.email, { clickCount: 3 });
+    const emailSelector = await findFirstSelector(page, asArray(sel.email), 15000);
+    const passSelector = await findFirstSelector(page, asArray(sel.pass), 15000);
+    const submitSelector = await findFirstSelector(page, asArray(sel.submit), 15000);
+
+    if (!emailSelector || !passSelector || !submitSelector) {
+      throw new Error('Login form fields not found');
+    }
+
+    await page.focus(emailSelector);
+    await page.click(emailSelector, { clickCount: 3 });
     await page.keyboard.type(email, { delay: 50 });
 
-    // Enter password
-    await page.focus(sel.pass);
-    await page.click(sel.pass, { clickCount: 3 });
+    await page.focus(passSelector);
+    await page.click(passSelector, { clickCount: 3 });
     await page.keyboard.type(password, { delay: 50 });
 
-    // Submit
-    await page.click(sel.submit);
-    await page.waitForTimeout(3000);
+    await page.click(submitSelector);
+    await new Promise(r => setTimeout(r, 3000));
 
-    // Check for 2FA or captcha
     console.log('✓ Login submitted. If you see 2FA or a captcha, complete it now.');
     await new Promise(resolve => {
       console.log('Press ENTER once you are on your listings page...');
       process.stdin.once('data', resolve);
     });
-
   } catch (error) {
     console.log('⚠️  Auto-login failed. Please log in manually in the browser, then press ENTER.');
     await new Promise(resolve => {
@@ -200,7 +223,7 @@ async function navigateToListings(page, platform) {
   const targetUrl = urlMap[platform.toLowerCase()];
   if (targetUrl) {
     await page.goto(targetUrl, { waitUntil: 'networkidle2' });
-    await page.waitForTimeout(3000);
+    await new Promise(r => setTimeout(r, 3000));
   }
 }
 
@@ -211,7 +234,7 @@ async function scrapeListings(page, platform) {
 
   for (let i = 0; i < 30; i++) {
     await page.evaluate(() => window.scrollBy(0, window.innerHeight));
-    await page.waitForTimeout(1500);
+    await new Promise(r => setTimeout(r, 1500));
 
     const newHeight = await page.evaluate(() => document.body.scrollHeight);
     if (newHeight === lastHeight) {
