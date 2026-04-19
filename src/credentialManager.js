@@ -1,32 +1,47 @@
-/**
- * Credential encryption/decryption
- * Uses AES-256-GCM with key from environment variable
- */
-
 const crypto = require('crypto');
 
 const ALGORITHM = 'aes-256-gcm';
 const KEY_LENGTH = 32;
 const IV_LENGTH = 16;
-const TAG_LENGTH = 16;
 
-// Get encryption key from env (32 bytes hex string)
-function getKey() {
-  const keyHex = process.env.CRED_ENCRYPTION_KEY;
+function getKeyConfigError() {
+  const keyHex = process.env.CRED_ENCRYPTION_KEY?.trim();
   if (!keyHex) {
-    console.warn('CRED_ENCRYPTION_KEY not set — credentials will not be encrypted. SET THIS IN RAILWAY!');
-    return null;
+    return 'CRED_ENCRYPTION_KEY_MISSING';
   }
-  return Buffer.from(keyHex, 'hex');
+
+  if (!/^[0-9a-fA-F]{64}$/.test(keyHex)) {
+    return 'CRED_ENCRYPTION_KEY_INVALID';
+  }
+
+  const key = Buffer.from(keyHex, 'hex');
+  if (key.length !== KEY_LENGTH) {
+    return 'CRED_ENCRYPTION_KEY_INVALID';
+  }
+
+  return null;
 }
 
-// Encrypt a string, returns "iv:authTag:ciphertext" (all hex)
+function getKey() {
+  const configError = getKeyConfigError();
+  if (configError) {
+    if (configError === 'CRED_ENCRYPTION_KEY_MISSING') {
+      console.warn('CRED_ENCRYPTION_KEY not set — credentials cannot be encrypted. Set this in Railway Variables.');
+    } else {
+      console.warn('CRED_ENCRYPTION_KEY invalid — expected 64 hex characters (32-byte key).');
+    }
+    return null;
+  }
+
+  return Buffer.from(process.env.CRED_ENCRYPTION_KEY.trim(), 'hex');
+}
+
 function encrypt(text) {
   if (!text) return '';
 
   const key = getKey();
   if (!key) {
-    throw new Error('Encryption key not configured. Set CRED_ENCRYPTION_KEY in Railway environment variables (32-byte hex).');
+    throw new Error('CRED_ENCRYPTION_KEY_INVALID');
   }
 
   try {
@@ -35,21 +50,18 @@ function encrypt(text) {
     let encrypted = cipher.update(text, 'utf8', 'hex');
     encrypted += cipher.final('hex');
     const authTag = cipher.getAuthTag();
-
-    return iv.toString('hex') + ':' + authTag.toString('hex') + ':' + encrypted;
+    return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`;
   } catch (err) {
     console.error('Encryption error:', err.message);
-    throw new Error('Failed to encrypt sensitive data');
+    throw new Error('CREDENTIAL_ENCRYPTION_FAILED');
   }
 }
 
-// Decrypt string back to plaintext
 function decrypt(encryptedText) {
   if (!encryptedText) return '';
 
   const key = getKey();
   if (!key) {
-    console.warn('CRED_ENCRYPTION_KEY not set — cannot decrypt credentials');
     return null;
   }
 
@@ -74,4 +86,4 @@ function decrypt(encryptedText) {
   }
 }
 
-module.exports = { encrypt, decrypt, getKey };
+module.exports = { encrypt, decrypt, getKey, getKeyConfigError };

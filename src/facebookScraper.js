@@ -54,10 +54,14 @@ class FacebookScraper {
         page.click('button[name="login"]')
       ]);
 
-      // Check for 2FA or security check
       const currentUrl = page.url();
       if (currentUrl.includes('checkpoint') || currentUrl.includes('twofactor') || currentUrl.includes('confirm')) {
         throw new Error('FACEBOOK_2FA_REQUIRED: Facebook requires two-factor authentication or security check. Please complete this in your browser first, then try again.');
+      }
+
+      const loginFieldStillVisible = await page.$('#email');
+      if (currentUrl.includes('/login') || loginFieldStillVisible) {
+        throw new Error('FACEBOOK_LOGIN_FAILED: Facebook rejected the login credentials.');
       }
 
       // Navigate to Marketplace → Your Listings

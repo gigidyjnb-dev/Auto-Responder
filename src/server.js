@@ -83,7 +83,7 @@ const { generateResponse } = require('./responseEngine');
 const { getSenderListing, registerEventIfNew, setSenderListing, saveCredentials, getCredentials, clearCredentials, markCredentialsUsed, recordSyncSuccess } = require('./db');
 const { deleteProfile, listProfiles, loadProfile, saveProfile } = require('./storage');
 const { FacebookScraper } = require('./facebookScraper');
-const { encrypt, decrypt } = require('./credentialManager');
+const { encrypt, decrypt, getKeyConfigError } = require('./credentialManager');
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -138,6 +138,15 @@ const integrationLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => `${req.ip}:${req.header('x-integration-key') || 'no-key'}`,
   message: { error: 'Too many inbound integration requests. Slow down and retry.' },
+});
+
+const setupLimiter = rateLimit({
+  windowMs: Number(process.env.SETUP_RATE_WINDOW_MS || 60 * 1000),
+  max: Number(process.env.SETUP_RATE_MAX || 12),
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `${req.ip}:${req.path}`,
+  message: { error: 'Too many setup attempts. Please wait and try again.', code: 'SETUP_RATE_LIMITED' },
 });
 
 function integrationAuthOk(req) {
@@ -226,6 +235,37 @@ function requireAdminCsrf(req, res, next) {
   }
 
   return next();
+}
+
+function requireSetupAccess(req, res, next) {
+  const enabled = process.env.SETUP_REQUIRE_AUTH === '1' || process.env.SETUP_REQUIRE_AUTH === 'true';
+  if (!enabled) {
+    return next();
+  }
+
+  if (integrationAuthOk(req) || isAdminAuthenticated(req)) {
+    return next();
+  }
+
+  return res.status(401).json({
+    error: 'Setup endpoint requires admin session or x-integration-key.',
+    code: 'SETUP_AUTH_REQUIRED',
+  });
+}
+
+function getCredentialKeyErrorResponse() {
+  const keyError = getKeyConfigError();
+  if (!keyError) {
+    return null;
+  }
+
+  return {
+    status: 503,
+    body: {
+      error: 'Credential encryption is not configured. Set CRED_ENCRYPTION_KEY to a 64-character hex value in Railway Variables.',
+      code: keyError,
+    },
+  };
 }
 
 function resolveListingId({ requestedListingId, platform, senderId }) {
@@ -738,11 +778,21 @@ app.post('/api/outbound', integrationLimiter, (req, res) => {
 // One-Click Setup: Save credentials & sync
 // ============================================
 
-// Save encrypted Facebook credentials
-app.post('/api/credentials/facebook', (req, res) => {
-  const { email, password } = req.body;
+app.post('/api/credentials/facebook', setupLimiter, requireSetupAccess, (req, res) => {
+  const keyIssue = getCredentialKeyErrorResponse();
+  if (keyIssue) {
+    return res.status(keyIssue.status).json(keyIssue.body);
+  }
+
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
+  const password = typeof req.body?.password === 'string' ? req.body.password : '';
+
   if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password required' });
+    return res.status(400).json({ error: 'Email and password required.', code: 'MISSING_CREDENTIAL_FIELDS' });
+  }
+
+  if (password.length < 4 || password.length > 200) {
+    return res.status(400).json({ error: 'Password length is invalid.', code: 'INVALID_PASSWORD_LENGTH' });
   }
 
   try {
@@ -750,15 +800,30 @@ app.post('/api/credentials/facebook', (req, res) => {
     saveCredentials('facebook_marketplace', email, encryptedPassword, null);
     return res.json({ ok: true });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    if (err.message === 'CRED_ENCRYPTION_KEY_INVALID') {
+      return res.status(503).json({
+        error: 'Credential encryption is not configured. Set CRED_ENCRYPTION_KEY to a 64-character hex value in Railway Variables.',
+        code: 'CRED_ENCRYPTION_KEY_INVALID',
+      });
+    }
+
+    if (err.message === 'CREDENTIAL_ENCRYPTION_FAILED') {
+      return res.status(500).json({ error: 'Failed to secure credentials for storage.', code: 'CREDENTIAL_ENCRYPTION_FAILED' });
+    }
+
+    return res.status(500).json({ error: 'Failed to save credentials.', code: 'CREDENTIAL_SAVE_FAILED' });
   }
 });
 
-// Trigger sync for Facebook (uses stored credentials)
-app.post('/api/sync/facebook', async (req, res) => {
+app.post('/api/sync/facebook', setupLimiter, requireSetupAccess, async (req, res) => {
+  const keyIssue = getCredentialKeyErrorResponse();
+  if (keyIssue) {
+    return res.status(keyIssue.status).json(keyIssue.body);
+  }
+
   const creds = getCredentials('facebook_marketplace');
   if (!creds) {
-    return res.status(400).json({ error: 'No credentials stored. Connect your account first.' });
+    return res.status(400).json({ error: 'No credentials stored. Connect your account first.', code: 'NO_STORED_CREDENTIALS' });
   }
 
   markCredentialsUsed('facebook_marketplace');
@@ -766,16 +831,18 @@ app.post('/api/sync/facebook', async (req, res) => {
   try {
     const password = decrypt(creds.password_encrypted);
     if (!password) {
-      throw new Error('Failed to decrypt stored credentials');
+      return res.status(500).json({
+        error: 'Stored credentials could not be decrypted. Reconnect your Facebook account and try again.',
+        code: 'CREDENTIAL_DECRYPT_FAILED',
+      });
     }
 
     const scraper = new FacebookScraper();
     const listings = await scraper.loginAndScrape({
-      username: creds.username,
-      password: password
+      email: creds.username,
+      password,
     });
 
-    // Convert listings to profiles and save
     let saved = 0;
     for (const listing of listings) {
       try {
@@ -796,7 +863,7 @@ app.post('/api/sync/facebook', async (req, res) => {
             url: listing.url || '',
             scrapedAt: now,
             syncedAt: now,
-          })
+          }),
         };
 
         saveProfile(profile);
@@ -812,29 +879,34 @@ app.post('/api/sync/facebook', async (req, res) => {
       ok: true,
       message: `Imported ${saved} listings`,
       count: saved,
-      listings: listings.map(l => ({ title: l.title, price: l.price }))
+      listings: listings.map((l) => ({ title: l.title, price: l.price })),
     });
-
   } catch (err) {
+    const message = err?.message || '';
     console.error('Sync error:', err);
-    let message = err.message;
 
-    // Handle specific error cases
+    if (message.includes('FACEBOOK_LOGIN_FAILED')) {
+      return res.status(401).json({
+        error: 'Facebook login failed. Re-check your email/password and try again.',
+        code: 'FACEBOOK_LOGIN_FAILED',
+      });
+    }
+
     if (message.includes('2FA') || message.includes('checkpoint')) {
       return res.status(403).json({
         error: 'Facebook requires two-factor authentication or security verification. Please complete this in your browser first, then try again.',
-        code: 'FACEBOOK_2FA_REQUIRED'
+        code: 'FACEBOOK_2FA_REQUIRED',
       });
     }
 
     if (message.includes('Navigation timeout') || message.includes('net::ERR')) {
       return res.status(502).json({
         error: 'Could not reach Facebook. Please try again later.',
-        code: 'NETWORK_ERROR'
+        code: 'NETWORK_ERROR',
       });
     }
 
-    return res.status(500).json({ error: message || 'Sync failed' });
+    return res.status(500).json({ error: 'Sync failed.', code: 'FACEBOOK_SYNC_FAILED' });
   }
 });
 
