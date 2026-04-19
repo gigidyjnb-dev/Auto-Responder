@@ -127,6 +127,30 @@
       </section>
 
       <section class="card">
+        <h2>3b) Paste Multiple Listings</h2>
+        <p class="subtitle" style="font-size: 14px; margin-bottom: 16px;">
+          Copy your listings from anywhere and paste them below. Format: <strong>Title - $Price</strong> per line.
+        </p>
+        <form id="pasteEntryForm" class="stack">
+          <textarea id="pasteListings" rows="6" placeholder="Example:&#10;Vintage Leather Jacket - $50&#10;iPhone 13 Pro Max - $600&#10;Sony Headphones - $120"></textarea>
+          <button type="submit">Add All Listings</button>
+        </form>
+        <div id="pasteStatus" class="status"></div>
+      </section>
+
+      <section class="card">
+        <h2>3c) Upload CSV</h2>
+        <p class="subtitle" style="font-size: 14px; margin-bottom: 16px;">
+          Upload a CSV file with columns: <strong>title, price, description</strong> (description is optional)
+        </p>
+        <form id="csvEntryForm" class="stack">
+          <input type="file" id="csvFile" accept=".csv,.txt" required />
+          <button type="submit">Upload CSV</button>
+        </form>
+        <div id="csvStatus" class="status"></div>
+      </section>
+
+      <section class="card">
         <h2>4) Sync Your Listings Automatically</h2>
         <p class="subtitle" style="font-size: 14px; margin-bottom: 16px;">
           <strong>How to sync your listings:</strong>

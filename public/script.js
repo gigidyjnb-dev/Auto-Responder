@@ -21,6 +21,12 @@ const activeListingTitle = document.getElementById('activeListingTitle');
 const manualEntryForm = document.getElementById('manualEntryForm');
 const manualStatus = document.getElementById('manualStatus');
 
+const pasteEntryForm = document.getElementById('pasteEntryForm');
+const pasteStatus = document.getElementById('pasteStatus');
+
+const csvEntryForm = document.getElementById('csvEntryForm');
+const csvStatus = document.getElementById('csvStatus');
+
 const statHotEl = document.getElementById('statHot');
 const statWarmEl = document.getElementById('statWarm');
 const statListingsEl = document.getElementById('statListings');
@@ -202,6 +208,141 @@ manualEntryForm.addEventListener('submit', async (event) => {
   } catch {
     setStatus(manualStatus, 'Failed to add listing. Check server.', true);
   }
+});
+
+// ── Paste multiple listings ────────────────────────────
+pasteEntryForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  setStatus(pasteStatus, 'Parsing listings...');
+
+  const text = document.getElementById('pasteListings').value.trim();
+  if (!text) {
+    setStatus(pasteStatus, 'Paste some listings first.', true);
+    return;
+  }
+
+  // Parse each line: "Title - $Price" or just "Title"
+  const lines = text.split('\n').filter(l => l.trim());
+  const listings = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    // Try to split by " - " or ", $" for price
+    let title = trimmed;
+    let price = '';
+
+    if (trimmed.includes(' - ')) {
+      const parts = trimmed.split(' - ');
+      title = parts[0].trim();
+      price = parts.slice(1).join(' - ').trim();
+    } else if (trimmed.match(/,\s*\$/) || trimmed.match(/\s\$\d/)) {
+      const match = trimmed.match(/^(.+?)[\s,]+(\$\d[\d,]*(?:\.\d{2})?)\s*$/);
+      if (match) {
+        title = match[1].trim();
+        price = match[2];
+      }
+    }
+
+    if (title.length > 0) {
+      listings.push({ title, price: price || '', condition: 'Used - Good' });
+    }
+  }
+
+  if (listings.length === 0) {
+    setStatus(pasteStatus, 'Could not parse any listings. Use format: Title - $Price', true);
+    return;
+  }
+
+  setStatus(pasteStatus, `Adding ${listings.length} listings...`);
+
+  try {
+    const res = await fetch('/api/listings/bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ listings })
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      setStatus(pasteStatus, data.error || 'Failed to add listings.', true);
+      return;
+    }
+
+    const count = data.synced || data.count || 0;
+    setStatus(pasteStatus, `Added ${count} listing(s) successfully!`);
+    pasteEntryForm.reset();
+    await loadListings();
+  } catch {
+    setStatus(pasteStatus, 'Failed. Check server.', true);
+  }
+});
+
+// ── CSV upload ─────────────────────────────────────
+csvEntryForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  setStatus(csvStatus, 'Processing CSV...');
+
+  const fileInput = document.getElementById('csvFile');
+  if (!fileInput.files || !fileInput.files[0]) {
+    setStatus(csvStatus, 'Select a file first.', true);
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const text = e.target.result;
+    const lines = text.split('\n').filter(l => l.trim());
+    const listings = [];
+
+    // Skip header row if it contains "title" or "price"
+    const startIdx = lines[0]?.toLowerCase().includes('title') ? 1 : 0;
+
+    for (let i = startIdx; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+
+      // Simple CSV parsing - split by first comma for title, rest for price (simplified)
+      const parts = line.split(',');
+      const title = parts[0]?.replace(/^"|"$/g, '').trim();
+      const price = parts[1]?.replace(/^"|"$/g, '').trim();
+
+      if (title && title.length > 0) {
+        listings.push({ title, price: price || '', condition: 'Used - Good' });
+      }
+    }
+
+    if (listings.length === 0) {
+      setStatus(csvStatus, 'No listings found in CSV.', true);
+      return;
+    }
+
+    setStatus(csvStatus, `Adding ${listings.length} listings...`);
+
+    try {
+      const res = await fetch('/api/listings/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ listings })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setStatus(csvStatus, data.error || 'Failed to add listings.', true);
+        return;
+      }
+
+      const count = data.synced || data.count || 0;
+      setStatus(csvStatus, `Added ${count} listing(s) from CSV!`);
+      csvEntryForm.reset();
+      await loadListings();
+    } catch {
+      setStatus(csvStatus, 'Failed. Check server.', true);
+    }
+  };
+
+  reader.readAsText(fileInput.files[0]);
 });
 
 // ── Generate response ─────────────────────────────────
