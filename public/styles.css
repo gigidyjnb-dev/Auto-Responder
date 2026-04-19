@@ -125,6 +125,49 @@ h1 {
   animation-delay: 90ms;
 }
 
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.stat-box {
+  background: rgba(15, 157, 123, 0.08);
+  border-radius: 12px;
+  padding: 14px 10px;
+  text-align: center;
+}
+
+.stat-box.stat-hot {
+  background: rgba(40, 167, 69, 0.15);
+  border: 1px solid rgba(40, 167, 69, 0.3);
+}
+
+.stat-box.stat-warm {
+  background: rgba(23, 162, 184, 0.15);
+  border: 1px solid rgba(23, 162, 184, 0.3);
+}
+
+.stat-value {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--accent-strong);
+}
+
+.stat-box.stat-hot .stat-value {
+  color: #28a745;
+}
+
+.stat-box.stat-warm .stat-value {
+  color: #17a2b8;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
 h2 {
   margin-top: 0;
   margin-bottom: 12px;

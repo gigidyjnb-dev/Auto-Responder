@@ -1215,10 +1215,21 @@ app.patch('/api/listings/:id/floor-price', (req, res) => {
 app.get('/api/stats', (req, res) => {
   const listings = listProfiles();
   const pending = getPending();
+  
+  // Count by buyer intent
+  let hot = 0, warm = 0;
+  for (const item of pending) {
+    const label = item.buyerIntentLabel;
+    if (label === 'HIGH_INTENT' || label === 'LIKELY_BUYER') hot++;
+    else if (label === 'NEGOTIATING') warm++;
+  }
+  
   return res.json({
     ok: true,
     listingsCount: listings.length,
     pendingReplies: pending.length,
+    hotBuyers: hot,
+    warmBuyers: warm,
   });
 });
 

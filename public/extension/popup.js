@@ -152,16 +152,22 @@ $('testConnection').addEventListener('click', async () => {
 /* ── Sync listings tab ─────────────────────────────────── */
 async function scrapeCurrentPage(platform) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const url = tab.url || '';
 
   const knownHosts = ['facebook.com', 'ebay.com', 'etsy.com', 'offerup.com', 'mercari.com', 'poshmark.com', 'craigslist.org'];
-  const isKnown = knownHosts.some((h) => tab.url?.includes(h));
+  const isKnown = knownHosts.some((h) => url.includes(h));
   if (!isKnown) {
     throw new Error('Navigate to your listings page on a supported marketplace first.');
   }
 
+  let scraperFile = 'scrapers/universal.js';
+  if (url.includes('facebook.com/marketplace')) {
+    scraperFile = 'scrapers/facebook_marketplace.js';
+  }
+
   const results = await chrome.scripting.executeScript({
     target: { tabId: tab.id },
-    files: ['scrapers/universal.js'],
+    files: [scraperFile],
   });
 
   const listings = results[0]?.result;

@@ -32,6 +32,26 @@
         </p>
       </header>
 
+      <section class="card" id="statsCard">
+        <div class="stats-grid">
+          <div class="stat-box stat-hot">
+            <div class="stat-value" id="statHot">0</div>
+            <div class="stat-label">🔥 Ready to Buy</div>
+          </div>
+          <div class="stat-box stat-warm">
+            <div class="stat-value" id="statWarm">0</div>
+            <div class="stat-label">🤝 Interested</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value" id="statListings">0</div>
+            <div class="stat-label">📦 Listings</div>
+          </div>
+        </div>
+        <p class="subtitle" style="font-size:12px;margin-top:12px;">
+          <strong>🔥 Ready to Buy</strong> = Buyers showing strong commitment signals. Prioritize these!
+        </p>
+      </section>
+
       <section class="card">
         <h2>1) Manage Listings</h2>
         <div class="stack">
@@ -87,10 +107,36 @@
       </section>
 
       <section class="card">
-        <h2>3) Sync Your Listings Automatically</h2>
+        <h2>3) Quick Manual Entry</h2>
         <p class="subtitle" style="font-size: 14px; margin-bottom: 16px;">
-          Don't manually copy listings. Install our Chrome extension to auto-import all your marketplace listings with one click.
+          Enter a listing manually without uploading a file.
         </p>
+        <form id="manualEntryForm" class="stack">
+          <label class="field-label">Title</label>
+          <input id="manualTitle" type="text" placeholder="e.g., Vintage Leather Jacket" required />
+          
+          <label class="field-label">Price</label>
+          <input id="manualPrice" type="text" placeholder="e.g., $50 or Best Offer" />
+          
+          <label class="field-label">Description</label>
+          <textarea id="manualDescription" rows="4" placeholder="Describe your item..."></textarea>
+          
+          <button type="submit">Add Listing</button>
+        </form>
+        <div id="manualStatus" class="status"></div>
+      </section>
+
+      <section class="card">
+        <h2>4) Sync Your Listings Automatically</h2>
+        <p class="subtitle" style="font-size: 14px; margin-bottom: 16px;">
+          <strong>How to sync your listings:</strong>
+        </p>
+        <ol style="font-size: 13px; line-height: 1.8; margin-bottom: 16px; padding-left: 20px;">
+          <li><strong>1.</strong> Download & install the Chrome extension (button below)</li>
+          <li><strong>2.</strong> Open Facebook Marketplace → <a href="https://www.facebook.com/marketplace/you/selling" target="_blank" style="color: var(--accent-strong);">Your Listings</a></li>
+          <li><strong>3.</strong> Scroll down to load ALL your listings</li>
+          <li><strong>4.</strong> Click the extension icon → click <strong>Sync My Listings</strong></li>
+        </ol>
         <div class="platform-grid" style="margin: 16px 0;">
           <div class="platform-badge">Facebook Marketplace</div>
           <div class="platform-badge">eBay</div>

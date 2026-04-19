@@ -18,6 +18,13 @@ const responseBox    = document.getElementById('responseBox');
 const activeListingBadge = document.getElementById('activeListingBadge');
 const activeListingTitle = document.getElementById('activeListingTitle');
 
+const manualEntryForm = document.getElementById('manualEntryForm');
+const manualStatus = document.getElementById('manualStatus');
+
+const statHotEl = document.getElementById('statHot');
+const statWarmEl = document.getElementById('statWarm');
+const statListingsEl = document.getElementById('statListings');
+
 // ── Helpers ───────────────────────────────────────────
 function setStatus(el, text, isError = false) {
   el.textContent = text;
@@ -155,6 +162,48 @@ uploadForm.addEventListener('submit', async (event) => {
   }
 });
 
+// ── Manual listing entry ────────────────────────────────
+manualEntryForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  setStatus(manualStatus, 'Adding listing...');
+
+  const title = document.getElementById('manualTitle').value.trim();
+  const price = document.getElementById('manualPrice').value.trim();
+  const description = document.getElementById('manualDescription').value.trim();
+
+  if (!title) {
+    setStatus(manualStatus, 'Title is required.', true);
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/listings/bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        listings: [{
+          title,
+          price,
+          description,
+          condition: 'Used - Good',
+        }]
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      setStatus(manualStatus, data.error || 'Failed to add listing.', true);
+      return;
+    }
+
+    setStatus(manualStatus, `"${title}" added successfully!`);
+    manualEntryForm.reset();
+    await loadListings();
+  } catch {
+    setStatus(manualStatus, 'Failed to add listing. Check server.', true);
+  }
+});
+
 // ── Generate response ─────────────────────────────────
 respondForm.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -195,6 +244,24 @@ respondForm.addEventListener('submit', async (event) => {
   }
 });
 
+// ── Stats ────────────────────────────────────────────
+async function loadStats() {
+  try {
+    const res = await fetch('/api/stats');
+    const data = await res.json();
+    if (data.ok) {
+      statListingsEl.textContent = data.listingsCount || 0;
+      statHotEl.textContent = data.hotBuyers || 0;
+      statWarmEl.textContent = data.warmBuyers || 0;
+    }
+  } catch (e) {
+    statListingsEl.textContent = '—';
+    statHotEl.textContent = '—';
+    statWarmEl.textContent = '—';
+  }
+}
+
 // ── Init ──────────────────────────────────────────────
 loadListings();
+loadStats();
 
