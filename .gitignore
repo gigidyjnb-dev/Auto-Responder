@@ -3,3 +3,9 @@ node_modules/
 uploads/*
 data/*.json
 !data/.gitkeep
+.aider*
+
+# Global gitignore patterns like "Public/" match "public/" on case-insensitive
+# filesystems and would skip our web UI — force-track these paths.
+!/public/
+!/public/**

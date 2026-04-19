@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Marketplace Auto-Responder</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Space+Grotesk:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="bg-shape shape-a"></div>
+    <div class="bg-shape shape-b"></div>
+
+    <nav class="topnav">
+      <a href="/" class="active">Respond</a>
+      <a href="/admin.html">Admin Queue</a>
+      <a href="/setup-status.html">Setup Status</a>
+    </nav>
+
+    <main class="page">
+      <header class="hero">
+        <p class="eyebrow">SELLER ASSISTANT</p>
+        <h1>Marketplace Inquiry Auto-Responder</h1>
+        <p class="subtitle">
+          Upload one product description, then generate personalized answers for each buyer question.
+        </p>
+      </header>
+
+      <section class="card">
+        <h2>1) Manage Listings</h2>
+        <div class="stack">
+          <label class="field-label">Your Listings</label>
+          <div class="listing-row">
+            <select id="listingSelect">
+              <option value="">-- No listings yet --</option>
+            </select>
+            <button type="button" id="loadListingBtn" class="btn-secondary">Load</button>
+            <button type="button" id="deleteListingBtn" class="btn-danger">Delete</button>
+          </div>
+          <div id="listingStatus" class="status"></div>
+        </div>
+
+        <div class="card-divider"></div>
+
+        <form id="uploadForm" class="stack">
+          <label class="field-label">Upload New Listing</label>
+          <input id="productFile" name="productFile" type="file" accept=".txt,.md,.text" required />
+          <button type="submit">Upload Listing</button>
+        </form>
+        <div id="uploadStatus" class="status"></div>
+        <pre id="productSummary" class="summary hidden"></pre>
+      </section>
+
+      <section class="card">
+        <h2>2) Generate Personalized Reply</h2>
+        <div id="activeListingBadge" class="active-listing-badge hidden">
+          Responding for: <strong id="activeListingTitle"></strong>
+        </div>
+        <form id="respondForm" class="stack">
+          <select id="channel">
+            <option value="facebook_marketplace">Facebook Marketplace</option>
+            <option value="facebook_messenger">Facebook Messenger</option>
+            <option value="ebay">eBay</option>
+            <option value="etsy">Etsy</option>
+            <option value="offerup">OfferUp</option>
+            <option value="mercari">Mercari</option>
+            <option value="poshmark">Poshmark</option>
+            <option value="craigslist">Craigslist</option>
+          </select>
+          <input id="customerName" type="text" placeholder="Buyer name (optional)" />
+          <textarea
+            id="question"
+            rows="4"
+            placeholder="Example: Is this still available and can you do $120?"
+            required
+          ></textarea>
+          <button type="submit">Generate Response</button>
+        </form>
+        <div id="responseStatus" class="status"></div>
+        <pre id="responseBox" class="summary hidden"></pre>
+      </section>
+    </main>
+
+    <script src="/script.js"></script>
+  </body>
+</html>

@@ -1,0 +1,6 @@
+# Health: GET /health or GET /api/health → 200 JSON { "ok": true } (see src/server.js).
+# Use repo root as the service root (not my-gemini-project/).
+[deploy]
+startCommand = "npm start"
+healthcheckPath = "/health"
+healthcheckTimeout = 100

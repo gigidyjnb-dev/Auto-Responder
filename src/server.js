@@ -186,9 +186,13 @@ function resolveListingId({ requestedListingId, platform, senderId }) {
   return null;
 }
 
-app.get('/api/health', (_req, res) => {
-  res.json({ ok: true });
-});
+function sendHealth(_req, res) {
+  res.status(200).json({ ok: true });
+}
+
+// Railway / platforms often default to `/health`; keep `/api/health` for render.yaml parity.
+app.get('/health', sendHealth);
+app.get('/api/health', sendHealth);
 
 app.get('/webhook/facebook', (req, res) => {
   if (!isConfigured()) {
@@ -412,6 +416,6 @@ app.post('/api/outbound', integrationLimiter, (req, res) => {
   }
 });
 
-app.listen(port, () => {
+app.listen(port, '0.0.0.0', () => {
   console.log(`Server running on port ${port}`);
 });

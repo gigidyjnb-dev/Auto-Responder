@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Queue - Auto-Responder</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <nav class="topnav">
+      <a href="/">Respond</a>
+      <a href="/admin.html" class="active">Admin Queue</a>
+      <a href="/setup-status.html">Setup Status</a>
+    </nav>
+
+    <main class="page">
+      <header class="hero">
+        <p class="eyebrow">ADMIN</p>
+        <h1>Review Queue</h1>
+        <p class="subtitle">Messages are grouped by buyer intent — focus on the top section first.</p>
+      </header>
+
+      <section class="card" id="adminLoginCard">
+        <h2>Admin Login</h2>
+        <form id="adminLoginForm" class="stack">
+          <input id="adminPassword" type="password" placeholder="Enter admin password" autocomplete="current-password" />
+          <button type="submit">Log In</button>
+        </form>
+      </section>
+
+      <section class="card hidden" id="adminQueueCard">
+        <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;">
+          <h2 style="margin:0;">Pending Items</h2>
+          <div style="display:flex;gap:8px;">
+            <button id="refreshBtn" type="button">Refresh</button>
+            <button id="logoutBtn" type="button" class="btn-secondary">Log Out</button>
+          </div>
+        </div>
+        <div id="adminStatus" class="status"></div>
+        <div id="queueList" class="stack"></div>
+      </section>
+    </main>
+
+    <script src="/admin.js"></script>
+  </body>
+</html>
