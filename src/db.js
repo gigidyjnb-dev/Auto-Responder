@@ -159,25 +159,42 @@ function registerEventIfNew(eventKey) {
 // Platform credentials management (encrypted storage)
 function saveCredentials(platform, username, password, sessionCookie = null) {
   const now = new Date().toISOString();
-  
-  // Check if exists
-  const existing = db.prepare('SELECT id FROM platform_credentials WHERE platform = ?').get(platform);
-  
+
+  let existing;
+  try {
+    existing = db.prepare('SELECT id FROM platform_credentials WHERE platform = ?').get(platform);
+  } catch (err) {
+    console.error(`[db.saveCredentials] Failed to query existing credentials for platform "${platform}":`, err.message, err.stack);
+    throw err;
+  }
+
   if (existing) {
-    db.prepare(`
-      UPDATE platform_credentials 
-      SET username = ?, password_encrypted = ?, session_cookie_encrypted = ?, 
-          updated_at = ?, last_used_at = ?
-      WHERE platform = ?
-    `).run(username, password, sessionCookie, now, now, platform);
-    return existing.id;
+    try {
+      db.prepare(`
+        UPDATE platform_credentials 
+        SET username = ?, password_encrypted = ?, session_cookie_encrypted = ?, 
+            updated_at = ?, last_used_at = ?
+        WHERE platform = ?
+      `).run(username, password, sessionCookie, now, now, platform);
+      console.log(`[db.saveCredentials] Updated credentials for platform "${platform}" (id=${existing.id})`);
+      return existing.id;
+    } catch (err) {
+      console.error(`[db.saveCredentials] UPDATE failed for platform "${platform}":`, err.message, err.stack);
+      throw err;
+    }
   } else {
-    const result = db.prepare(`
-      INSERT INTO platform_credentials 
-      (platform, username, password_encrypted, session_cookie_encrypted, created_at, updated_at, last_used_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(platform, username, password, sessionCookie, now, now, now);
-    return result.lastInsertRowid;
+    try {
+      const result = db.prepare(`
+        INSERT INTO platform_credentials 
+        (platform, username, password_encrypted, session_cookie_encrypted, created_at, updated_at, last_used_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(platform, username, password, sessionCookie, now, now, now);
+      console.log(`[db.saveCredentials] Inserted credentials for platform "${platform}" (id=${result.lastInsertRowid})`);
+      return result.lastInsertRowid;
+    } catch (err) {
+      console.error(`[db.saveCredentials] INSERT failed for platform "${platform}":`, err.message, err.stack);
+      throw err;
+    }
   }
 }
 

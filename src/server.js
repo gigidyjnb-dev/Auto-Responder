@@ -795,11 +795,12 @@ app.post('/api/credentials/facebook', setupLimiter, requireSetupAccess, (req, re
     return res.status(400).json({ error: 'Password length is invalid.', code: 'INVALID_PASSWORD_LENGTH' });
   }
 
+  let encryptedPassword;
   try {
-    const encryptedPassword = encrypt(password);
-    saveCredentials('facebook_marketplace', email, encryptedPassword, null);
-    return res.json({ ok: true });
+    encryptedPassword = encrypt(password);
   } catch (err) {
+    console.error('[credentials/facebook] Encryption failed:', err.message, err.stack);
+
     if (err.message === 'CRED_ENCRYPTION_KEY_INVALID') {
       return res.status(503).json({
         error: 'Credential encryption is not configured. Set CRED_ENCRYPTION_KEY to a 64-character hex value in Railway Variables.',
@@ -807,11 +808,23 @@ app.post('/api/credentials/facebook', setupLimiter, requireSetupAccess, (req, re
       });
     }
 
-    if (err.message === 'CREDENTIAL_ENCRYPTION_FAILED') {
-      return res.status(500).json({ error: 'Failed to secure credentials for storage.', code: 'CREDENTIAL_ENCRYPTION_FAILED' });
-    }
+    return res.status(500).json({
+      error: 'Failed to secure credentials for storage.',
+      code: 'CREDENTIAL_ENCRYPTION_FAILED',
+      detail: err.message,
+    });
+  }
 
-    return res.status(500).json({ error: 'Failed to save credentials.', code: 'CREDENTIAL_SAVE_FAILED' });
+  try {
+    saveCredentials('facebook_marketplace', email, encryptedPassword, null);
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('[credentials/facebook] Database save failed:', err.message, err.stack);
+    return res.status(500).json({
+      error: 'Failed to save credentials to the database.',
+      code: 'CREDENTIAL_SAVE_FAILED',
+      detail: err.message,
+    });
   }
 });
 
