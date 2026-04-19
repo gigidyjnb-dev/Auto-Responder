@@ -1,28 +1,56 @@
-/* popup.js — Marketplace Auto-Responder Extension */
+/* popup.js — Marketplace Auto-Responder Extension v3 (Simplified) */
 
 const $ = (id) => document.getElementById(id);
 
-/* ── Tab switching ─────────────────────────────────────── */
-document.querySelectorAll('.tab').forEach((tab) => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
-    document.querySelectorAll('.panel').forEach((p) => p.classList.remove('active'));
-    tab.classList.add('active');
-    $(`tab-${tab.dataset.tab}`).classList.add('active');
-  });
-});
+let serverUrl = '';
+let autoReplyEnabled = false;
+let autoSendEnabled = false;
 
-/* ── Status helpers ────────────────────────────────────── */
+/* ── Load settings ─────────────────────────────────────── */
+chrome.storage.local.get(
+  ['serverUrl', 'autoReplyEnabled', 'autoSendEnabled', 'statListings'],
+  (r) => {
+    serverUrl = (r.serverUrl || '').replace(/\/$/, '');
+    autoReplyEnabled = Boolean(r.autoReplyEnabled);
+    autoSendEnabled = Boolean(r.autoSendEnabled);
+    
+    if (serverUrl) {
+      showMainSection();
+      updateStats();
+    }
+  }
+);
+
+function showMainSection() {
+  $('setupSection').style.display = 'none';
+  $('mainSection').style.display = 'block';
+  $('autoReplyToggle').checked = autoReplyEnabled;
+  $('autoSendToggle').checked = autoSendEnabled;
+  $('arStatus').textContent = autoReplyEnabled ? 'ON' : 'OFF';
+  $('arStatus').style.color = autoReplyEnabled ? '#4caf50' : '#999';
+}
+
+function showSetupSection() {
+  $('setupSection').style.display = 'block';
+  $('mainSection').style.display = 'none';
+}
+
+function updateStats() {
+  if (!serverUrl) return;
+  
+  fetch(`${serverUrl}/api/stats`).then(r => r.json()).then(d => {
+    if (d.listingsCount !== undefined) {
+      $('statListings').textContent = d.listingsCount;
+    }
+  }).catch(() => {});
+}
+
+/* ── Progress helpers ─────────────────────────────────────── */
 function setStatus(elId, msg, type) {
   const el = $(elId);
   el.className = `status ${type}`;
   el.textContent = msg;
-}
-
-function clearStatus(elId) {
-  const el = $(elId);
-  el.className = '';
-  el.textContent = '';
+  el.style.display = 'block';
 }
 
 function showProgress(pct) {
@@ -30,134 +58,12 @@ function showProgress(pct) {
   $('progressFill').style.width = `${pct}%`;
 }
 
-function hideProgress() {
-  setTimeout(() => { $('progressBar').style.display = 'none'; }, 1000);
-}
-
-/* ── Load settings ─────────────────────────────────────── */
-let serverUrl = '';
-
-chrome.storage.local.get(
-  ['serverUrl', 'autoReplyEnabled', 'autoSendEnabled', 'statReplies', 'statListings',
-   'awayEnabled', 'awayStart', 'awayEnd', 'awayMessage'],
-  (r) => {
-    serverUrl = (r.serverUrl || '').replace(/\/$/, '');
-    $('serverUrl').value = serverUrl;
-    $('autoReplyToggle').checked = Boolean(r.autoReplyEnabled);
-    $('autoSendToggle').checked = Boolean(r.autoSendEnabled);
-    updateArBadge(Boolean(r.autoReplyEnabled));
-    $('statReplies').textContent = r.statReplies || '0';
-    $('statListings').textContent = r.statListings || '0';
-
-    const awayOn = Boolean(r.awayEnabled);
-    $('awayToggle').checked = awayOn;
-    $('awaySettings').style.display = awayOn ? 'block' : 'none';
-    if (r.awayStart) $('awayStart').value = r.awayStart;
-    if (r.awayEnd)   $('awayEnd').value   = r.awayEnd;
-    if (r.awayMessage) $('awayMessage').value = r.awayMessage;
-
-    if (!serverUrl) setStatus('arStatus', 'Set your Server URL in Settings first.', 'info');
-
-    if (serverUrl) {
-      fetch(`${serverUrl}/api/stats`).then(r => r.json()).then(d => {
-        if (d.listingsCount !== undefined) $('statListings').textContent = d.listingsCount;
-        if (d.pendingReplies !== undefined && d.pendingReplies > 0) {
-          setStatus('arStatus', `${d.pendingReplies} replies waiting in admin queue.`, 'info');
-        }
-      }).catch(() => {});
-    }
-  }
-);
-
-function updateArBadge(on) {
-  const badge = $('arBadge');
-  badge.textContent = on ? 'ON' : 'OFF';
-  badge.className = `badge ${on ? 'on' : 'off'}`;
-}
-
-/* ── Auto-reply toggles ────────────────────────────────── */
-$('autoReplyToggle').addEventListener('change', (e) => {
-  const enabled = e.target.checked;
-  chrome.storage.local.set({ autoReplyEnabled: enabled });
-  updateArBadge(enabled);
-  if (enabled && !serverUrl) {
-    setStatus('arStatus', 'Please set your Server URL in Settings first.', 'error');
-    e.target.checked = false;
-    updateArBadge(false);
-    chrome.storage.local.set({ autoReplyEnabled: false });
-    return;
-  }
-  setStatus('arStatus', enabled ? 'Auto-reply is ON. Open FB Marketplace inbox.' : 'Auto-reply disabled.', enabled ? 'success' : 'info');
-});
-
-$('autoSendToggle').addEventListener('change', (e) => {
-  chrome.storage.local.set({ autoSendEnabled: e.target.checked });
-});
-
-/* ── Away mode ─────────────────────────────────────────── */
-$('awayToggle').addEventListener('change', (e) => {
-  const on = e.target.checked;
-  chrome.storage.local.set({ awayEnabled: on });
-  $('awaySettings').style.display = on ? 'block' : 'none';
-});
-
-$('saveAway').addEventListener('click', () => {
-  chrome.storage.local.set({
-    awayStart: $('awayStart').value,
-    awayEnd: $('awayEnd').value,
-    awayMessage: $('awayMessage').value.trim() || "Thanks for your message! I'm away right now but will get back to you shortly.",
-  });
-  setStatus('arStatus', 'Away settings saved!', 'success');
-  setTimeout(() => clearStatus('arStatus'), 2500);
-});
-
-/* ── Open inbox ────────────────────────────────────────── */
-$('openInboxBtn').addEventListener('click', () => {
-  chrome.tabs.create({ url: 'https://www.facebook.com/marketplace/inbox/' });
-});
-
-/* ── Settings tab ──────────────────────────────────────── */
-$('saveSettings').addEventListener('click', () => {
-  const url = $('serverUrl').value.trim().replace(/\/$/, '');
-  if (!url) {
-    setStatus('settingsStatus', 'Please enter a valid server URL.', 'error');
-    return;
-  }
-  serverUrl = url;
-  chrome.storage.local.set({ serverUrl: url }, () => {
-    setStatus('settingsStatus', 'Settings saved!', 'success');
-  });
-});
-
-$('testConnection').addEventListener('click', async () => {
-  const url = $('serverUrl').value.trim().replace(/\/$/, '');
-  if (!url) {
-    setStatus('settingsStatus', 'Enter a Server URL first.', 'error');
-    return;
-  }
-  setStatus('settingsStatus', 'Testing connection…', 'info');
-  try {
-    const resp = await fetch(`${url}/health`, { signal: AbortSignal.timeout(6000) });
-    const data = await resp.json().catch(() => ({}));
-    if (resp.ok) {
-      setStatus('settingsStatus', `Connected! Server is healthy.`, 'success');
-    } else {
-      setStatus('settingsStatus', `Server returned ${resp.status}.`, 'error');
-    }
-  } catch (err) {
-    setStatus('settingsStatus', `Connection failed: ${err.message}`, 'error');
-  }
-});
-
-/* ── Sync listings tab ─────────────────────────────────── */
-async function scrapeCurrentPage(platform) {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+/* ── Scraper function ─────────────────────────────────── */
+async function scrapeListings(tab) {
   const url = tab.url || '';
-
-  const knownHosts = ['facebook.com', 'ebay.com', 'etsy.com', 'offerup.com', 'mercari.com', 'poshmark.com', 'craigslist.org'];
-  const isKnown = knownHosts.some((h) => url.includes(h));
-  if (!isKnown) {
-    throw new Error('Navigate to your listings page on a supported marketplace first.');
+  
+  if (!url.includes('facebook.com') && !url.includes('ebay.com') && !url.includes('etsy.com')) {
+    throw new Error('Open your marketplace listings page first.');
   }
 
   let scraperFile = 'scrapers/universal.js';
@@ -171,65 +77,138 @@ async function scrapeCurrentPage(platform) {
   });
 
   const listings = results[0]?.result;
-  if (!Array.isArray(listings)) throw new Error('Scraper returned no data. Try refreshing the page.');
+  if (!Array.isArray(listings) || listings.length === 0) {
+    throw new Error('No listings found. Scroll down to load all listings first.');
+  }
 
-  const normalized = listings
-    .map((listing) => ({
-      ...listing,
-      title: String(listing?.title ?? listing?.name ?? '').trim(),
-    }))
-    .filter((listing) => listing.title.length > 0);
-
-  return normalized;
+  // Normalize
+  return listings
+    .map(l => ({ ...l, title: String(l?.title ?? l?.name ?? '').trim() }))
+    .filter(l => l.title.length > 0);
 }
 
-$('syncBtn').addEventListener('click', async () => {
-  const platform = $('platform').value;
-  if (!platform) { setStatus('syncStatus', 'Select a platform first.', 'error'); return; }
-  if (!serverUrl) { setStatus('syncStatus', 'Set your Server URL in Settings first.', 'error'); return; }
+/* ── ONE-CLICK SETUP ─────────────────────────────────────── */
+$('quickSetupBtn').addEventListener('click', async () => {
+  const urlInput = $('serverUrl').value.trim();
+  if (!urlInput) {
+    setStatus('setupStatus', 'Enter your app URL first.', 'error');
+    return;
+  }
+  
+  // Validate URL
+  let url = urlInput;
+  if (!url.startsWith('http')) url = 'https://' + url;
+  url = url.replace(/\/$/, '');
 
-  $('syncBtn').disabled = true;
-  clearStatus('syncStatus');
+  $('quickSetupBtn').disabled = true;
+  setStatus('setupStatus', 'Setting up...', 'info');
   showProgress(10);
 
   try {
-    const listings = await scrapeCurrentPage(platform);
-    if (!listings.length) {
-      setStatus('syncStatus', 'No listings found. Make sure you are on your listings page.', 'error');
-      return;
+    // Test connection first
+    showProgress(20);
+    const testRes = await fetch(`${url}/health`, { signal: AbortSignal.timeout(10000) });
+    if (!testRes.ok) throw new Error('Cannot connect to server');
+
+    // Get current tab
+    showProgress(30);
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab) throw new Error('No active tab');
+
+    // Scrape listings
+    showProgress(50);
+    setStatus('setupStatus', 'Syncing listings...', 'info');
+    const listings = await scrapeListings(tab);
+    
+    if (listings.length === 0) {
+      throw new Error('No listings found. Scroll down to load them first.');
     }
 
-    $('listingCount').textContent = `Found ${listings.length} listing(s)…`;
-    showProgress(40);
-
-    const resp = await fetch(`${serverUrl}/api/listings/bulk`, {
+    // Upload to server
+    showProgress(70);
+    setStatus('setupStatus', `Uploading ${listings.length} listings...`, 'info');
+    const uploadRes = await fetch(`${url}/api/listings/bulk`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ listings, platform }),
+      body: JSON.stringify({ listings, platform: 'facebook_marketplace' })
     });
 
-    showProgress(85);
+    const uploadData = await uploadRes.json().catch(() => ({}));
+    if (!uploadRes.ok) throw new Error(uploadData.error || 'Upload failed');
 
-    const result = await resp.json().catch(() => ({}));
-    if (!resp.ok) throw new Error(result.error || `Server error ${resp.status}`);
+    // Turn on auto-reply and auto-send
+    showProgress(90);
+    chrome.storage.local.set({
+      serverUrl: url,
+      autoReplyEnabled: true,
+      autoSendEnabled: true,
+    });
 
-    const count = Number(result.synced ?? result.count ?? 0);
-    if (count <= 0) {
-      const firstError = Array.isArray(result.errors) && result.errors.length ? ` (${result.errors[0]})` : '';
-      throw new Error(`Sync completed but 0 listings were saved${firstError}`);
-    }
+    showProgress(100);
+    setStatus('setupStatus', `✅ Done! ${listings.length} listings synced. Auto-reply is ON!`, 'success');
 
-    setStatus('syncStatus', `✅ Synced ${count} listing(s)!`, 'success');
-    $('listingCount').textContent = `${count} listings on server`;
-
-    chrome.storage.local.set({ statListings: count });
-    $('statListings').textContent = count;
+    // Show main section
+    setTimeout(() => {
+      serverUrl = url;
+      autoReplyEnabled = true;
+      autoSendEnabled = true;
+      showMainSection();
+      updateStats();
+    }, 1500);
 
   } catch (err) {
-    setStatus('syncStatus', `Error: ${err.message}`, 'error');
-  } finally {
-    $('syncBtn').disabled = false;
+    setStatus('setupStatus', 'Error: ' + err.message, 'error');
+    $('quickSetupBtn').disabled = false;
+  }
+});
+
+/* ── Toggle handlers ───────────────────────────────────── */
+$('autoReplyToggle').addEventListener('change', (e) => {
+  autoReplyEnabled = e.target.checked;
+  chrome.storage.local.set({ autoReplyEnabled });
+  $('arStatus').textContent = autoReplyEnabled ? 'ON' : 'OFF';
+  $('arStatus').style.color = autoReplyEnabled ? '#4caf50' : '#999';
+  setStatus('syncStatus', autoReplyEnabled ? 'Auto-reply enabled' : 'Auto-reply disabled', 'info');
+});
+
+$('autoSendToggle').addEventListener('change', (e) => {
+  autoSendEnabled = e.target.checked;
+  chrome.storage.local.set({ autoSendEnabled });
+  setStatus('syncStatus', autoSendEnabled ? 'Auto-send enabled' : 'Auto-send disabled', 'info');
+});
+
+/* ── Re-sync button ───────────────────────────────────── */
+$('resyncBtn').addEventListener('click', async () => {
+  if (!serverUrl) {
+    showSetupSection();
+    return;
+  }
+
+  $('resyncBtn').disabled = true;
+  setStatus('syncStatus', 'Syncing...', 'info');
+  showProgress(10);
+
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const listings = await scrapeListings(tab);
+    
+    showProgress(60);
+    const res = await fetch(`${serverUrl}/api/listings/bulk`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ listings, platform: 'facebook_marketplace' })
+    });
+
+    const data = await res.json().catch(() => ({}));
+    const count = data.synced || data.count || 0;
+
     showProgress(100);
-    hideProgress();
+    setStatus('syncStatus', `Synced ${count} listings!`, 'success');
+    updateStats();
+
+  } catch (err) {
+    setStatus('syncStatus', 'Error: ' + err.message, 'error');
+  } finally {
+    $('resyncBtn').disabled = false;
   }
 });

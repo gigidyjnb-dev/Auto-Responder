@@ -10,219 +10,158 @@
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: #f5f7fa;
       color: #1a1a1a;
+      padding: 16px;
     }
     .header {
       background: #0066ff;
       color: #fff;
-      padding: 14px 16px 0;
+      padding: 12px 16px;
+      margin: -16px -16px 16px -16px;
+      border-radius: 0;
     }
-    .header h1 { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
-    .tabs { display: flex; gap: 4px; }
-    .tab {
-      flex: 1;
-      padding: 8px;
-      text-align: center;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      border-radius: 6px 6px 0 0;
-      background: rgba(255,255,255,0.15);
-      color: rgba(255,255,255,0.8);
-      border: none;
-    }
-    .tab.active { background: #f5f7fa; color: #0066ff; }
-    .panel { display: none; padding: 16px; }
-    .panel.active { display: block; }
+    .header h1 { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+    .header p { font-size: 11px; opacity: 0.9; }
 
-    label { font-size: 12px; font-weight: 600; color: #555; display: block; margin-bottom: 4px; }
-    input[type="text"], select {
-      width: 100%; padding: 8px 10px; border: 1px solid #ddd;
-      border-radius: 6px; font-size: 13px; margin-bottom: 12px;
+    .section { margin-bottom: 16px; }
+    .section-title { font-size: 12px; font-weight: 700; color: #0066ff; margin-bottom: 8px; text-transform: uppercase; }
+
+    input[type="text"] {
+      width: 100%; padding: 10px 12px; border: 1px solid #ddd;
+      border-radius: 8px; font-size: 14px; margin-bottom: 10px;
       background: #fff;
     }
-    input[type="text"]:focus, select:focus { outline: none; border-color: #0066ff; }
+    input[type="text"]:focus { outline: none; border-color: #0066ff; }
 
-    .toggle-row {
-      display: flex; align-items: center; justify-content: space-between;
-      background: #fff; border-radius: 8px; padding: 10px 12px;
-      margin-bottom: 10px; border: 1px solid #eee;
+    .btn {
+      display: block; width: 100%; padding: 14px; border: none; border-radius: 10px;
+      font-size: 15px; font-weight: 700; cursor: pointer; text-align: center;
     }
-    .toggle-label { font-size: 13px; font-weight: 600; }
-    .toggle-sub { font-size: 11px; color: #888; margin-top: 2px; }
-    .switch { position: relative; display: inline-block; width: 40px; height: 22px; }
-    .switch input { opacity: 0; width: 0; height: 0; }
-    .slider {
-      position: absolute; cursor: pointer; inset: 0;
-      background: #ccc; border-radius: 22px; transition: .3s;
+    .btn-primary {
+      background: linear-gradient(135deg, #0066ff, #0052cc);
+      color: white;
+      box-shadow: 0 4px 14px rgba(0,102,255,0.3);
     }
-    .slider:before {
-      content: ''; position: absolute;
-      width: 16px; height: 16px; left: 3px; bottom: 3px;
-      background: #fff; border-radius: 50%; transition: .3s;
-    }
-    input:checked + .slider { background: #0066ff; }
-    input:checked + .slider:before { transform: translateX(18px); }
+    .btn-primary:hover { background: #0052cc; }
+    .btn-primary:disabled { background: #99bcff; cursor: not-allowed; }
 
-    button.primary {
-      width: 100%; padding: 10px; border: none; border-radius: 8px;
-      background: #0066ff; color: #fff; font-size: 14px; font-weight: 600;
-      cursor: pointer; margin-bottom: 8px;
+    .btn-secondary {
+      background: #fff; color: #333; border: 1px solid #ddd;
+      font-size: 13px; padding: 10px;
     }
-    button.primary:hover { background: #0052cc; }
-    button.primary:disabled { background: #99bcff; cursor: not-allowed; }
-    button.secondary {
-      width: 100%; padding: 9px; border: 1px solid #ddd; border-radius: 8px;
-      background: #fff; color: #333; font-size: 13px; font-weight: 500;
-      cursor: pointer; margin-bottom: 8px;
-    }
-    button.secondary:hover { background: #f0f0f0; }
 
     .status {
-      padding: 8px 10px; border-radius: 6px; font-size: 12px; margin-top: 6px;
+      padding: 10px 12px; border-radius: 8px; font-size: 13px; margin-top: 10px;
     }
     .status.success { background: #d4edda; color: #155724; }
     .status.error   { background: #f8d7da; color: #721c24; }
     .status.info    { background: #d1ecf1; color: #0c5460; }
 
-    .progress-bar { height: 3px; background: #e0e0e0; border-radius: 2px; overflow: hidden; margin: 6px 0; }
+    .progress-bar { height: 4px; background: #e0e0e0; border-radius: 2px; overflow: hidden; margin-top: 10px; }
     .progress-fill { height: 100%; background: #0066ff; width: 0%; transition: width .3s; }
 
-    .badge {
-      display: inline-block; padding: 2px 8px; border-radius: 12px;
-      font-size: 10px; font-weight: 700; text-transform: uppercase;
-    }
-    .badge.on  { background: #d4edda; color: #155724; }
-    .badge.off { background: #f0f0f0; color: #888; }
-
+    .hint { font-size: 11px; color: #888; margin-top: 8px; line-height: 1.5; }
     .stat-row {
-      display: flex; justify-content: space-between;
-      background: #fff; border-radius: 8px; padding: 10px 12px;
-      margin-bottom: 8px; border: 1px solid #eee; font-size: 12px;
+      display: flex; justify-content: space-between; align-items: center;
+      background: #fff; border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; border: 1px solid #eee;
     }
-    .stat-row .val { font-weight: 700; color: #0066ff; }
-    .divider { height: 1px; background: #eee; margin: 12px 0; }
-    .hint { font-size: 11px; color: #999; margin-top: -8px; margin-bottom: 10px; }
+    .stat-val { font-weight: 700; color: #0066ff; font-size: 16px; }
+
+    .toggle-row {
+      display: flex; align-items: center; justify-content: space-between;
+      background: #fff; border-radius: 8px; padding: 12px 14px;
+      margin-bottom: 8px; border: 1px solid #eee;
+    }
+    .toggle-label { font-size: 14px; font-weight: 600; }
+    .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; cursor: pointer; inset: 0;
+      background: #ccc; border-radius: 24px; transition: .3s;
+    }
+    .slider:before {
+      content: ''; position: absolute;
+      width: 18px; height: 18px; left: 3px; bottom: 3px;
+      background: #fff; border-radius: 50%; transition: .3s;
+    }
+    input:checked + .slider { background: #0066ff; }
+    input:checked + .slider:before { transform: translateX(20px); }
+
+    .setup-box {
+      background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+      border: 2px solid #4caf50; border-radius: 12px; padding: 16px; text-align: center;
+    }
+    .setup-box h2 { color: #2e7d32; font-size: 16px; margin-bottom: 8px; }
+    .setup-box p { font-size: 13px; color: #555; margin-bottom: 12px; }
   </style>
 </head>
 <body>
   <div class="header">
-    <h1>🤖 Marketplace Auto-Responder</h1>
-    <div class="tabs">
-      <button class="tab active" data-tab="sync">Sync Listings</button>
-      <button class="tab" data-tab="autoreply">Auto-Reply</button>
-      <button class="tab" data-tab="settings">Settings</button>
-    </div>
+    <h1>🤖 Auto-Responder</h1>
+    <p>One-click setup for Facebook Marketplace</p>
   </div>
 
-  <!-- SYNC TAB -->
-  <div class="panel active" id="tab-sync">
-    <label for="platform">Platform</label>
-    <select id="platform">
-      <option value="">Select platform...</option>
-      <option value="facebook_marketplace">Facebook Marketplace</option>
-      <option value="ebay">eBay</option>
-      <option value="etsy">Etsy</option>
-      <option value="offerup">OfferUp</option>
-      <option value="mercari">Mercari</option>
-      <option value="poshmark">Poshmark</option>
-      <option value="craigslist">Craigslist</option>
-    </select>
-    <button class="primary" id="syncBtn">Sync My Listings</button>
-    <div class="progress-bar" id="progressBar" style="display:none">
-      <div class="progress-fill" id="progressFill"></div>
+  <!-- FIRST TIME SETUP -->
+  <div id="setupSection">
+    <div class="setup-box">
+      <h2>🚀 Quick Setup</h2>
+      <p>Enter your app URL once, then click the button below to do everything automatically.</p>
+      
+      <input type="text" id="serverUrl" placeholder="Your app URL (e.g., https://your-app.up.railway.app)">
+      
+      <button class="btn btn-primary" id="quickSetupBtn">⚡ One-Click Setup</button>
+      
+      <div class="progress-bar" id="progressBar" style="display:none">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+      <div id="setupStatus"></div>
     </div>
-    <div id="syncStatus"></div>
-    <div class="hint" id="listingCount"></div>
-    <div class="divider"></div>
-    <p style="font-size:12px;color:#666;line-height:1.5">
-      Navigate to your <strong>Facebook Marketplace → Your Listings</strong> page (or equivalent on other platforms), then click Sync.
+    
+    <p class="hint">
+      <strong>What this does:</strong><br>
+      1. Saves your URL<br>
+      2. Syncs all your listings<br>
+      3. Turns on auto-reply
     </p>
   </div>
 
-  <!-- AUTO-REPLY TAB -->
-  <div class="panel" id="tab-autoreply">
-    <div class="toggle-row">
-      <div>
-        <div class="toggle-label">Auto-Reply <span class="badge off" id="arBadge">OFF</span></div>
-        <div class="toggle-sub">Watch inbox & respond to buyers</div>
+  <!-- ALREADY SET UP -->
+  <div id="mainSection" style="display:none;">
+    <div class="section">
+      <div class="stat-row">
+        <span>Listings synced</span>
+        <span class="stat-val" id="statListings">—</span>
       </div>
-      <label class="switch">
-        <input type="checkbox" id="autoReplyToggle">
-        <span class="slider"></span>
-      </label>
-    </div>
-
-    <div class="toggle-row">
-      <div>
-        <div class="toggle-label">Auto-Send</div>
-        <div class="toggle-sub">Send without confirmation prompt</div>
+      <div class="stat-row">
+        <span>Auto-Reply</span>
+        <span class="stat-val" id="arStatus">OFF</span>
       </div>
-      <label class="switch">
-        <input type="checkbox" id="autoSendToggle">
-        <span class="slider"></span>
-      </label>
     </div>
 
-    <div class="divider"></div>
-
-    <div class="stat-row">
-      <span>Replies generated today</span>
-      <span class="val" id="statReplies">—</span>
-    </div>
-    <div class="stat-row">
-      <span>Listings synced</span>
-      <span class="val" id="statListings">—</span>
-    </div>
-
-    <div class="divider"></div>
-
-    <button class="secondary" id="openInboxBtn">Open FB Marketplace Inbox ↗</button>
-
-    <div id="arStatus"></div>
-
-    <div class="divider"></div>
-
-    <div class="toggle-row">
-      <div>
-        <div class="toggle-label">Away Mode</div>
-        <div class="toggle-sub">Send canned reply outside business hours</div>
+    <div class="section">
+      <div class="section-title">Control</div>
+      <div class="toggle-row">
+        <span class="toggle-label">Auto-Reply</span>
+        <label class="switch">
+          <input type="checkbox" id="autoReplyToggle">
+          <span class="slider"></span>
+        </label>
       </div>
-      <label class="switch">
-        <input type="checkbox" id="awayToggle">
-        <span class="slider"></span>
-      </label>
-    </div>
-
-    <div id="awaySettings" style="display:none;background:#fff;border:1px solid #eee;border-radius:8px;padding:12px;margin-bottom:10px">
-      <div style="display:flex;gap:8px;margin-bottom:10px">
-        <div style="flex:1">
-          <label for="awayStart">Away from</label>
-          <input type="time" id="awayStart" value="22:00" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:13px">
-        </div>
-        <div style="flex:1">
-          <label for="awayEnd">Until</label>
-          <input type="time" id="awayEnd" value="07:00" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:13px">
-        </div>
+      <div class="toggle-row">
+        <span class="toggle-label">Auto-Send (no confirm)</span>
+        <label class="switch">
+          <input type="checkbox" id="autoSendToggle">
+          <span class="slider"></span>
+        </label>
       </div>
-      <label for="awayMessage">Away message</label>
-      <textarea id="awayMessage" rows="3" style="width:100%;padding:7px;border:1px solid #ddd;border-radius:6px;font-size:12px;resize:vertical;font-family:inherit">Thanks for your message! I'm away right now but will get back to you first thing in the morning.</textarea>
-      <button class="primary" id="saveAway" style="margin-top:6px">Save Away Settings</button>
     </div>
 
-    <p style="font-size:11px;color:#999;line-height:1.5">
-      Keep FB Marketplace inbox open in a tab. The extension watches for new buyer messages and responds automatically.
+    <button class="btn btn-primary" id="resyncBtn">🔄 Re-Sync Listings</button>
+    <div id="syncStatus" class="status" style="display:none"></div>
+    
+    <p class="hint">
+      Keep <strong>facebook.com/marketplace/inbox</strong> open in a tab.<br>
+      The bot watches for messages and replies automatically.
     </p>
-  </div>
-
-  <!-- SETTINGS TAB -->
-  <div class="panel" id="tab-settings">
-    <label for="serverUrl">Server URL</label>
-    <input type="text" id="serverUrl" placeholder="https://your-app.railway.app">
-
-    <button class="primary" id="saveSettings">Save Settings</button>
-    <button class="secondary" id="testConnection">Test Connection</button>
-
-    <div id="settingsStatus"></div>
   </div>
 
   <script src="popup.js"></script>
