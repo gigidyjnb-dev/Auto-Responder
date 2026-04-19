@@ -122,16 +122,20 @@ INTEGRATION_API_KEY=REPLACE_WITH_STRONG_KEY
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pageText, links, images })
       })
-      .then(r => r.json())
-      .then(data => {
+      .then(async r => {
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Server error ' + r.status);
+        
         status.style.background = '#28a745';
         status.innerText = '✅ Synced ' + data.count + ' listings!';
         setTimeout(() => status.remove(), 4000);
       })
       .catch(err => {
+        console.error('Sync error:', err);
         status.style.background = '#dc3545';
-        status.innerText = '❌ Error: ' + err.message;
-        setTimeout(() => status.remove(), 4000);
+        status.innerText = '❌ ' + err.message;
+        // Keep error visible longer
+        setTimeout(() => status.remove(), 8000);
       });
     })();`;
     
