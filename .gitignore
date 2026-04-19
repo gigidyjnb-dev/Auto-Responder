@@ -25,6 +25,8 @@ my-gemini-project/
 !/public/
 !/public/**
 
-# Re-ignore extension zip after re-including public/**
-public/extension/*.zip
+# Re-ignore extension zip after re-including public**
+# public/extension/*.zip
+# Actually include the zip - users need it!
+!public/extension/marketplace-sync-extension.zip
 
