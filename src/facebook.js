@@ -1,1 +1,79 @@
-<!DOCTYPE html><html lang="en-US"><head><title>Just a moment...</title><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=Edge"><meta name="robots" content="noindex,nofollow"><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box;margin:0;padding:0}html{line-height:1.15;-webkit-text-size-adjust:100%;color:#313131;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji"}body{display:flex;flex-direction:column;height:100vh;min-height:100vh}.main-content{margin:8rem auto;padding-left:1.5rem;max-width:60rem}@media (width <= 720px){.main-content{margin-top:4rem}}#challenge-error-text{background-image:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgZmlsbD0ibm9uZSI+PHBhdGggZmlsbD0iI0IyMEYwMyIgZD0iTTE2IDNhMTMgMTMgMCAxIDAgMTMgMTNBMTMuMDE1IDEzLjAxNSAwIDAgMCAxNiAzbTAgMjRhMTEgMTEgMCAxIDEgMTEtMTEgMTEuMDEgMTEuMDEgMCAwIDEtMTEgMTEiLz48cGF0aCBmaWxsPSIjQjIwRjAzIiBkPSJNMTcuMDM4IDE4LjYxNUgxNC44N0wxNC41NjMgOS41aDIuNzgzem0tMS4wODQgMS40MjdxLjY2IDAgMS4wNTcuMzg4LjQwNy4zODkuNDA3Ljk5NCAwIC41OTYtLjQwNy45ODQtLjM5Ny4zOS0xLjA1Ny4zODktLjY1IDAtMS4wNTYtLjM4OS0uMzk4LS4zODktLjM5OC0uOTg0IDAtLjU5Ny4zOTgtLjk4NS40MDYtLjM5NyAxLjA1Ni0uMzk3Ii8+PC9zdmc+");background-repeat:no-repeat;background-size:contain;padding-left:34px}</style><meta http-equiv="refresh" content="360"></head><body><div class="main-wrapper" role="main"><div class="main-content"><noscript><div class="h2"><span id="challenge-error-text">Enable JavaScript and cookies to continue</span></div></noscript></div></div><script>(function(){window._cf_chl_opt = {cFPWv: 'g',cH: 'IBaAhVbo7HCzo1A9PZkg4G2tLs1.ZsUZZRF9qZbjdbs-1776581377-1.2.1.1-jG47PCmnLdHpmPgWlgzLmM3cigA8cCiALWu2O1IZa5ptn.tVnX0D4lGvxiFPHVkm',cITimeS: '1776581377',cRay: '9ee9f8693f6f7b36',cTplB: '0',cTplC:0,cTplO:0,cTplV:5,cType: 'managed',cUPMDTk:"/?__cf_chl_tk=6VxCw481ULLjoM3gupk1M9CAGxvLpcdjGJk6xHLvpwo-1776581377-1.0.1.1-Dcs1iGqsnMCOJ_3xh0wzbdrH.7OEOpSquryBL8y6Gvg",cvId: '3',cZone: 'claude.ai',fa:"/?__cf_chl_f_tk=6VxCw481ULLjoM3gupk1M9CAGxvLpcdjGJk6xHLvpwo-1776581377-1.0.1.1-Dcs1iGqsnMCOJ_3xh0wzbdrH.7OEOpSquryBL8y6Gvg",md: 'OSzAnRZaamJY17alpuSOHH1r9eHO_u4T_Gov9mcyUEw-1776581377-1.2.1.1-NlUav_BwZqH4vNCOdlqxvoUM0dDdj2gOnY4b84gr4BWWk3SQWKUmtCsNmdkGRGI1zAvyKwP0hmlnrqR21yUa8fT4Pij4JW47z4.DmMfIzw_3pQrB3A2ERXzhLq4Q2s8kOu8XjQleQe.AECWNonhxUWNL.YwFwP6aZ9a4DQAuupmQyAUv.KwYymbgIaCoTT2VvGeAk8vt3w_7UTO6YSwLjV9pE.kbntLNemjcrDLzliOZmYq4ccO1o9zcyAms4nx4JfsqyMgkgSx1.V411f2o6iVpr1x0tcp24ti7A6R3ntdzaYhd2Rmk.gveGL07LVsS5w.oW2dHFTouglhBCGojWV_7RQBxWEofWTVPJ67bBMp1wPs5KtfjqikLLevcjHiL2GzWgiNxcOmzWjJ1h0LXcsbmmc7cOyjPcGK2jhTEUnoYum4NsMlCDslBL0f4kfdWuKzZdeIUgJLjEkIWUhAtzo6vUzmkqSAuz8w2QM.55_Svuh4y29LMSEybCMUMQQ2Tiv0BCrL6R_Ult7_nGp7wyU.uTe0X_owZzeRbn.wVCC7YZX_eRq9ZbsMqNPCSfstT1y7MPhfKpzuMG1Dij4WbsmzJzwMRBdkGSCZGmKEBCZaf2vRLoWuiqiRQMXwXO2S5rOJymKky4y2Zb80JHcvS0RomMxawfFA7weKhR7mV_QdbhJLc7wOaDpXHrYvIswXpQyzuUgBT9VQOBc7c.EYR2SasJqG0l99kc4qx6dWWB.My5omDYslZjZ3j4P9fDN3AJVviRiACrK5p98bATpsKo._ruoG93q5EKvVBKiU3_Ywk0bxGxSnr6NSJ2.0OS6g9mWyAsX6Z9pCFhhuFYJD6rMu87YWEnYAm0efVMOVlD2KiFazSGldurwnUuxPKdgVZibKo9dTvvJ3mj0Dbb.Fitg',mdrd: 'VXhVKWCWcSg51sbTMW_4RvpmvjQDUJsnAgEvRf6XDyA-1776581377-1.2.1.1-qcGzA8bX.KvoNVUGG1PvyMpZAgYPzMXJS_LB2Rkn0ENzzHVzZFyS4OVoeZCY5t0c6_FiCVLo2o0In0IOdPhCptCycRKfuLHrZWWG8tNG.VK3JEtvIPJbjTQTHoC0.8M8VI1g_5d2ymLGAd.owgEaId8Fi3uyj1lOGwbujHyyv_vLpHJqgiHaE1_sA65vq6jFHltZMsuDYb1M9pdvxSkGVCgBF05jGQCVS0YmMluTR.hs3nEy5PkUSyWWNvA9op5S',};var a = document.createElement('script');a.src = '/cdn-cgi/challenge-platform/h/g/orchestrate/chl_page/v1?ray=9ee9f8693f6f7b36';window._cf_chl_opt.cOgUHash = location.hash === '' && location.href.indexOf('#') !== -1 ? '#' : location.hash;window._cf_chl_opt.cOgUQuery = location.search === '' && location.href.slice(0, location.href.length - window._cf_chl_opt.cOgUHash.length).indexOf('?') !== -1 ? '?' : location.search;if (window.history && window.history.replaceState) {var ogU = location.pathname + window._cf_chl_opt.cOgUQuery + window._cf_chl_opt.cOgUHash;history.replaceState(null, null,"/?__cf_chl_rt_tk=6VxCw481ULLjoM3gupk1M9CAGxvLpcdjGJk6xHLvpwo-1776581377-1.0.1.1-Dcs1iGqsnMCOJ_3xh0wzbdrH.7OEOpSquryBL8y6Gvg"+ window._cf_chl_opt.cOgUHash);a.onload = function() {history.replaceState(null, null, ogU);}}document.getElementsByTagName('head')[0].appendChild(a);}());</script></body></html>
+/**
+ * facebook.js
+ * Handles Facebook Messenger webhook integration.
+ *
+ * Environment variables:
+ *   FB_PAGE_ACCESS_TOKEN  – Page token from Meta Developer Console (required)
+ *   FB_VERIFY_TOKEN       – Any string you choose; must match what you enter in Meta (required)
+ *   FB_APP_SECRET         – App secret for signature verification (optional but recommended)
+ *   FB_GRAPH_VERSION      – Graph API version, e.g. "v22.0" (default: v22.0)
+ */
+
+const crypto = require('crypto');
+const { getSenderListing } = require('./db');
+const { processInboundInquiry } = require('./inboundProcessor');
+
+function isConfigured() {
+  return !!(process.env.FB_PAGE_ACCESS_TOKEN && process.env.FB_VERIFY_TOKEN);
+}
+
+function verifyWebhook(req, res) {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+  if (mode === 'subscribe' && token === process.env.FB_VERIFY_TOKEN) {
+    console.log('[facebook] Webhook verified by Meta.');
+    return res.status(200).send(challenge);
+  }
+  console.warn('[facebook] Webhook verification failed — token mismatch.');
+  return res.status(403).send('Verification failed.');
+}
+
+function verifySignature(req) {
+  const appSecret = process.env.FB_APP_SECRET;
+  if (!appSecret) return true;
+  const sig = req.headers['x-hub-signature-256'];
+  if (!sig) return false;
+  const expected = 'sha256=' + crypto.createHmac('sha256', appSecret).update(JSON.stringify(req.body)).digest('hex');
+  try { return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected)); } catch { return false; }
+}
+
+async function sendFacebookReply(recipientId, text) {
+  const token = process.env.FB_PAGE_ACCESS_TOKEN;
+  const version = process.env.FB_GRAPH_VERSION || 'v22.0';
+  const url = `https://graph.facebook.com/${version}/me/messages?access_token=${token}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ recipient: { id: recipientId }, message: { text } }),
+  });
+  if (!res.ok) { const body = await res.text(); throw new Error(`Facebook Graph API error ${res.status}: ${body}`); }
+  return res.json();
+}
+
+async function handleWebhookEvent(req, res) {
+  res.status(200).send('EVENT_RECEIVED');
+  if (!verifySignature(req)) { console.error('[facebook] Signature verification failed.'); return; }
+  const body = req.body;
+  if (body.object !== 'page') return;
+  for (const entry of body.entry || []) {
+    for (const event of entry.messaging || []) {
+      const senderId = event.sender?.id;
+      const messageText = event.message?.text;
+      if (!senderId || !messageText || event.message?.is_echo) continue;
+      const listingId = getSenderListing('facebook_messenger', senderId) || null;
+      try {
+        await processInboundInquiry({
+          channel: 'facebook_messenger',
+          senderId,
+          customerName: null,
+          question: messageText,
+          listingId,
+          sendReply: async (replyText) => { await sendFacebookReply(senderId, replyText); },
+        });
+      } catch (err) { console.error(`[facebook] Error processing message from ${senderId}:`, err.message); }
+    }
+  }
+}
+
+module.exports = { isConfigured, verifyWebhook, handleWebhookEvent };
