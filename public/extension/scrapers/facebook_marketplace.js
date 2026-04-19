@@ -1,123 +1,119 @@
-// Facebook Marketplace Scraper
-// Navigate to: facebook.com/marketplace/you/selling
-// Scroll down to load all listings, then click Sync in extension
+// Facebook Marketplace Scraper - Ultra Simple Version
+// Just finds text elements that look like listings
 
 (function() {
   const listings = [];
   const seen = new Set();
 
-  function wait(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
+  function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-  async function scrollToLoadAll() {
-    for (let i = 0; i < 15; i++) {
+  async function scrape() {
+    // Scroll to load everything
+    for (let i = 0; i < 10; i++) {
       window.scrollTo(0, document.body.scrollHeight);
-      await wait(1200);
+      await wait(800);
     }
     window.scrollTo(0, 0);
     await wait(500);
-  }
 
-  function extractListings() {
-    // Broad approach: get ALL links that contain /marketplace/item/
-    const allLinks = Array.from(document.querySelectorAll('a[href*="/marketplace/item/"]'));
-    
-    console.log('[FB Scraper] Found ' + allLinks.length + ' marketplace item links');
+    // Method 1: Look for links to /marketplace/item/
+    const links = document.querySelectorAll('a[href*="/marketplace/item/"]');
+    console.log('[FB] Found ' + links.length + ' item links');
 
-    for (const link of allLinks) {
+    for (const link of links) {
       try {
-        const url = link.href;
-        if (!url || !url.includes('/marketplace/item/')) continue;
-
-        const id = url.split('/item/')[1]?.split('/')[0];
+        const href = link.href;
+        if (!href) continue;
+        
+        const urlParts = href.split('/marketplace/item/');
+        if (urlParts.length < 2) continue;
+        
+        const id = urlParts[1].split('?')[0].split('/')[0];
         if (!id || seen.has(id)) continue;
         seen.add(id);
 
-        // Get the card/container this link belongs to
-        let card = link.closest('div') || link.parentElement;
-        if (!card) card = link;
-
-        // Get title - try multiple ways
-        let title = '';
+        // Get text near this link - look up the tree for text
+        let text = '';
+        let parent = link.parentElement;
+        for (let i = 0; i < 5 && parent; i++) {
+          text = parent.textContent?.trim();
+          if (text && text.length > 5 && text.length < 150) break;
+          parent = parent.parentElement;
+        }
         
-        // Method 1: Look for any text that looks like a title near this link
-        const parentText = card.textContent || '';
-        const lines = parentText.split(/\n/).map(l => l.trim()).filter(l => l);
+        // Clean up the text
+        text = text?.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim() || '';
         
-        // Find a line that isn't just a price or short UI text
-        for (const line of lines) {
-          if (line.length > 5 && line.length < 120 && 
-              !line.match(/^\$[\d,]/) && 
-              !line.match(/^(edit|delete|share|boost|active|sold|pending)$/i)) {
-            title = line;
-            break;
-          }
-        }
+        // Skip if too short or looks like UI
+        if (text.length < 5) continue;
+        if (/^(edit|delete|share|boost|save|post|active|sold)$/i.test(text)) continue;
+        if (/^\d+$/.test(text)) continue;
+        if (/^\$[\d,]/.test(text)) continue; // Skip just prices
 
-        // Method 2: Try getting text content directly from nearby elements
-        if (!title) {
-          const siblings = card.querySelectorAll('span, div, p');
-          for (const el of siblings) {
-            const txt = el.textContent?.trim();
-            if (txt && txt.length > 5 && txt.length < 120 && !txt.match(/^\$/)) {
-              title = txt;
-              break;
-            }
-          }
-        }
-
-        // Method 3: Fallback to link's own text
-        if (!title && link.textContent) {
-          title = link.textContent.trim();
-        }
-
-        if (!title || title.length < 5) continue;
-
-        // Get price
+        // Find price in the text
         let price = '';
-        const cardText = card.textContent || '';
-        const priceMatch = cardText.match(/\$[\d,]+(?:\.\d{2})?/);
+        const priceMatch = text.match(/\$[\d,]+(?:\.\d{2})?/);
         if (priceMatch) price = priceMatch[0];
+        
+        // Remove price from title to clean it
+        let title = text.replace(/\$[\d,]+(?:\.\d{2})?/g, '').replace(/\s+/g, ' ').trim();
+        if (title.length < 5) title = text; // Keep original if cleaning made it empty
 
         // Get image
         let images = [];
-        const img = card.querySelector('img');
-        if (img && img.src && !img.src.includes('blank')) {
-          images = [img.src];
+        const img = link.closest('div')?.querySelector('img') || link.querySelector('img');
+        if (img && img.src) images = [img.src];
+
+        if (title.length > 5) {
+          listings.push({
+            title: title.substring(0, 100),
+            price: price,
+            condition: 'Used',
+            images: images,
+            url: href,
+            originalId: id,
+            platform: 'facebook_marketplace'
+          });
         }
-
-        listings.push({
-          title: title.substring(0, 150),
-          price: price || '',
-          condition: '',
-          location: '',
-          images,
-          url: url,
-          originalId: id,
-          platform: 'facebook_marketplace'
-        });
-
-      } catch (e) {
-        // Skip broken elements
-      }
+      } catch(e) {}
     }
 
+    // Method 2: If nothing found, try looking at all spans
+    if (listings.length === 0) {
+      console.log('[FB] Trying fallback - finding text elements');
+      const spans = document.querySelectorAll('span');
+      const candidates = [];
+      
+      for (const span of spans) {
+        const txt = span.textContent?.trim();
+        if (txt && txt.length > 10 && txt.length < 100) {
+          // Filter out obvious non-listings
+          if (/^(edit|delete|share|boost|save|post|active|sold|\d+|messenger|facebook|marketplace)/i.test(txt)) continue;
+          if (/^\$[\d,]/.test(txt)) continue;
+          if (txt.includes('·') && !txt.includes('$'))) continue;
+          candidates.push(txt);
+        }
+      }
+      
+      console.log('[FB] Found ' + candidates.length + ' candidates');
+      
+      // Dedupe and add
+      [...new Set(candidates)].forEach((title, i) => {
+        listings.push({
+          title: title.substring(0, 100),
+          price: '',
+          condition: 'Used',
+          images: [],
+          url: window.location.href,
+          originalId: 'item_' + i,
+          platform: 'facebook_marketplace'
+        });
+      });
+    }
+
+    console.log('[FB] Total listings: ' + listings.length);
     return listings;
   }
 
-  async function scrape() {
-    await scrollToLoadAll();
-    await wait(1000);
-    return extractListings();
-  }
-
-  // Run and return results
-  return scrape().then(results => {
-    console.log('[FB Scraper] Extracted ' + results.length + ' listings');
-    return results;
-  }).catch(err => {
-    console.error('[FB Scraper] Error:', err);
-    return [];
-  });
+  return scrape();
 })();
