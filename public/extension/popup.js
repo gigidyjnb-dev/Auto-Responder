@@ -60,43 +60,61 @@ function showProgress(pct) {
 
 /* ── Scraper function ─────────────────────────────────── */
 async function scrapeListings(tab) {
-  const url = tab.url || '';
+  const tabUrl = tab.url || '';
   
-  if (!url.includes('facebook.com') && !url.includes('ebay.com') && !url.includes('etsy.com')) {
-    throw new Error('Open your marketplace listings page first.');
+  if (!tabUrl.includes('facebook.com') && !tabUrl.includes('ebay.com') && !tabUrl.includes('etsy.com')) {
+    throw new Error('Please open your Facebook Marketplace page first: facebook.com/marketplace/you/selling');
   }
 
   let scraperFile = 'scrapers/universal.js';
-  if (url.includes('facebook.com/marketplace')) {
+  if (tabUrl.includes('facebook.com/marketplace')) {
     scraperFile = 'scrapers/facebook_marketplace.js';
   }
+
+  console.log('[Scrape] Using scraper:', scraperFile, 'on tab:', tabUrl);
 
   const results = await chrome.scripting.executeScript({
     target: { tabId: tab.id },
     files: [scraperFile],
   });
 
-  const listings = results[0]?.result;
-  if (!Array.isArray(listings) || listings.length === 0) {
-    throw new Error('No listings found. Scroll down to load all listings first.');
+  const rawListings = results[0]?.result;
+  console.log('[Scrape] Raw results:', rawListings?.length || 0);
+  
+  if (!Array.isArray(rawListings) || rawListings.length === 0) {
+    throw new Error('No listings found. Make sure you are on your Selling page and have scrolled down to load ALL listings.');
   }
 
   // Normalize
-  return listings
-    .map(l => ({ ...l, title: String(l?.title ?? l?.name ?? '').trim() }))
-    .filter(l => l.title.length > 0);
+  const listings = rawListings
+    .map(l => ({ ...l, title: String(l?.title ?? l?.name ?? 'Untitled').trim() }))
+    .filter(l => l.title.length > 3);
+    
+  console.log('[Scrape] Valid listings:', listings.length);
+  
+  if (listings.length === 0) {
+    throw new Error('Found 0 valid listings. Try scrolling more on your Facebook page.');
+  }
+
+  return listings;
 }
 
 /* ── ONE-CLICK SETUP ─────────────────────────────────────── */
 $('quickSetupBtn').addEventListener('click', async () => {
-  const urlInput = $('serverUrl').value.trim();
+  const urlInput = ($('serverUrl') && $('serverUrl').value) ? $('serverUrl').value.trim() : '';
+  
   if (!urlInput) {
-    setStatus('setupStatus', 'Enter your app URL first.', 'error');
+    setStatus('setupStatus', 'Enter your app URL in the box above.', 'error');
     return;
   }
   
-  // Validate URL
-  let url = urlInput;
+  // Validate URL format
+  let url = urlInput.trim();
+  if (!url.includes('.') || url.includes(' ')) {
+    setStatus('setupStatus', 'Invalid URL. Use format: https://your-app.up.railway.app', 'error');
+    return;
+  }
+  
   if (!url.startsWith('http')) url = 'https://' + url;
   url = url.replace(/\/$/, '');
 
@@ -107,8 +125,9 @@ $('quickSetupBtn').addEventListener('click', async () => {
   try {
     // Test connection first
     showProgress(20);
+    console.log('[Setup] Testing URL:', url);
     const testRes = await fetch(`${url}/health`, { signal: AbortSignal.timeout(10000) });
-    if (!testRes.ok) throw new Error('Cannot connect to server');
+    if (!testRes.ok) throw new Error('Cannot connect to server at ' + url);
 
     // Get current tab
     showProgress(30);
