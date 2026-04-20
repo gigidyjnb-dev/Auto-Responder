@@ -95,52 +95,68 @@
       <p>Sync your marketplace listings using the webhook integration or other methods.</p>
       <a href="/app.html" class="btn">Go to Dashboard</a>
     </div>
+
+    <div id="debug" style="margin-top: 20px; padding: 10px; background: #f0f0f0; border: 1px solid #ccc; display: none;">
+      <h3>Debug Info</h3>
+      <pre id="debugContent"></pre>
+    </div>
   </main>
 
   <script>
-    async function loadListings() {
-      try {
-        const response = await fetch('/api/products');
-        const data = await response.json();
-        const listings = data.listings || [];
+async function loadListings() {
+  try {
+    const response = await fetch('/api/products');
+    const data = await response.json();
+    const listings = data.listings || [];
 
-        const container = document.getElementById('listingsContainer');
-        const loading = document.getElementById('loading');
-        const noListings = document.getElementById('noListings');
+    // Debug info
+    document.getElementById('debugContent').textContent = JSON.stringify({
+      total: listings.length,
+      listings: listings.slice(0, 3), // Show first 3 for debugging
+      response: data
+    }, null, 2);
+    document.getElementById('debug').style.display = 'block';
 
-        loading.style.display = 'none';
+    const container = document.getElementById('listingsContainer');
+    const loading = document.getElementById('loading');
+    const noListings = document.getElementById('noListings');
 
-        if (listings.length === 0) {
-          noListings.style.display = 'block';
-          return;
-        }
+    loading.style.display = 'none';
 
-        container.style.display = 'grid';
-
-        listings.forEach(listing => {
-          const card = document.createElement('div');
-          card.className = 'listing-card';
-
-          const imageUrl = listing.images && listing.images[0] ? listing.images[0] : '/placeholder.png';
-          const price = listing.price || 'Contact for price';
-          const description = listing.description || '';
-
-          card.innerHTML = `
-            <img src="${imageUrl}" alt="${listing.title}" class="listing-image" onerror="this.src='/placeholder.png'">
-            <div class="listing-content">
-              <div class="listing-title">${listing.title}</div>
-              <div class="listing-price">${price}</div>
-              <div class="listing-description">${description}</div>
-            </div>
-          `;
-
-          container.appendChild(card);
-        });
-      } catch (error) {
-        console.error('Error loading listings:', error);
-        document.getElementById('loading').innerHTML = 'Error loading listings. Please try again.';
-      }
+    if (listings.length === 0) {
+      noListings.style.display = 'block';
+      return;
     }
+
+    container.style.display = 'grid';
+
+    listings.forEach(listing => {
+      const card = document.createElement('div');
+      card.className = 'listing-card';
+
+      const imageUrl = listing.images && listing.images[0] ? listing.images[0] : 'https://via.placeholder.com/300x200?text=No+Image';
+      const price = listing.price || 'Contact for price';
+      const description = listing.description || 'No description available';
+
+      card.innerHTML = `
+        <img src="${imageUrl}" alt="${listing.title}" class="listing-image" onerror="this.src='https://via.placeholder.com/300x200?text=Image+Error'">
+        <div class="listing-content">
+          <div class="listing-title">${listing.title}</div>
+          <div class="listing-price">${price}</div>
+          <div class="listing-description">${description}</div>
+          <div style="font-size: 12px; color: #666; margin-top: 8px;">ID: ${listing.id}</div>
+        </div>
+      `;
+
+      container.appendChild(card);
+    });
+  } catch (error) {
+    console.error('Error loading listings:', error);
+    document.getElementById('loading').innerHTML = `Error loading listings: ${error.message}. Please try again.`;
+    document.getElementById('debugContent').textContent = `Error: ${error.message}`;
+    document.getElementById('debug').style.display = 'block';
+  }
+}
 
     loadListings();
   </script>
