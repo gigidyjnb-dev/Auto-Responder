@@ -219,14 +219,29 @@ IKEA Kallax Shelf Unit - $65" required
           Choose the method that works best for you:
         </p>
 
-        <!-- Method 1: Dashboard Auto-Fetch -->
+        <!-- Method 1: Paste Listing URLs -->
         <div class="sync-method" style="margin-bottom: 20px; padding: 16px; border: 2px solid #e1f5fe; border-radius: 8px; background: #f8f9fa;">
-          <h3 style="margin: 0 0 8px 0; color: #0066ff;">🖥️ Method 1: Quick Dashboard Sync (Under 20 listings)</h3>
-          <p style="font-size: 13px; margin-bottom: 12px; color: #555;">No extension needed! Just paste your Marketplace profile URL.</p>
+          <h3 style="margin: 0 0 8px 0; color: #0066ff;">🔗 Method 1: Paste Listing URLs (Most Reliable)</h3>
+          <p style="font-size: 13px; margin-bottom: 12px; color: #555;">Copy individual listing links from Facebook Marketplace and paste them here.</p>
+
+          <form id="urlSyncForm" style="margin-bottom: 8px;">
+            <textarea id="listingUrls" rows="4" placeholder="Paste Facebook Marketplace listing URLs (one per line):
+https://www.facebook.com/marketplace/item/123456789/
+https://www.facebook.com/share/16wxWZUW7M/
+https://www.facebook.com/marketplace/item/987654321/" style="width: 100%; margin-bottom: 8px;"></textarea>
+            <button type="submit" class="btn-secondary" style="width: 100%; padding: 10px;">🔄 Import Listings</button>
+          </form>
+          <div id="urlSyncStatus" class="status"></div>
+        </div>
+
+        <!-- Method 2: Dashboard Auto-Fetch -->
+        <div class="sync-method" style="margin-bottom: 20px; padding: 16px; border: 2px solid #e8f5e9; border-radius: 8px; background: #f8f9fa;">
+          <h3 style="margin: 0 0 8px 0; color: #28a745;">🖥️ Method 2: Profile URL Sync (Bulk)</h3>
+          <p style="font-size: 13px; margin-bottom: 12px; color: #555;">Paste your entire Marketplace profile URL to sync all listings.</p>
 
           <form id="profileSyncForm" style="display: flex; gap: 8px; margin-bottom: 8px;">
             <input type="text" id="profileUrl" placeholder="https://www.facebook.com/marketplace/profile/1234567890" style="flex: 1;" />
-            <button type="submit" class="btn-secondary" style="padding: 8px 16px;">🔄 Sync Listings</button>
+            <button type="submit" class="btn-secondary" style="padding: 8px 16px;">🔄 Sync All</button>
           </form>
           <div id="profileSyncStatus" class="status"></div>
         </div>

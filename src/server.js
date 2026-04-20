@@ -1378,6 +1378,183 @@ app.post('/api/scrape/profile', setupLimiter, requireSetupAccess, async (req, re
   }
 });
 
+// ============================================
+// Scrape individual Facebook Marketplace URLs
+// ============================================
+app.post('/api/scrape/urls', setupLimiter, requireSetupAccess, async (req, res) => {
+  const { urls } = req.body || {};
+
+  if (!Array.isArray(urls) || urls.length === 0) {
+    return res.status(400).json({ error: 'No URLs provided' });
+  }
+
+  if (urls.length > 20) {
+    return res.status(400).json({ error: 'Maximum 20 URLs at once' });
+  }
+
+  const listings = [];
+  let processed = 0;
+  let errors = [];
+
+  for (const url of urls) {
+    try {
+      if (!url || typeof url !== 'string') continue;
+
+      const cleanUrl = url.trim();
+      if (!cleanUrl.includes('facebook.com')) continue;
+
+      console.log('[URL Scrape] Fetching:', cleanUrl);
+
+      // Fetch the listing page
+      const response = await fetch(cleanUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
+          'Accept-Encoding': 'gzip, deflate',
+          'Connection': 'keep-alive',
+          'Upgrade-Insecure-Requests': '1',
+        }
+      });
+
+      if (!response.ok) {
+        errors.push(`${cleanUrl}: HTTP ${response.status}`);
+        continue;
+      }
+
+      const html = await response.text();
+      console.log('[URL Scrape] Got HTML, length:', html.length);
+
+      // Extract listing data from HTML
+      const listing = extractListingFromHtml(html, cleanUrl);
+      if (listing) {
+        listings.push(listing);
+        processed++;
+      } else {
+        errors.push(`${cleanUrl}: Could not extract listing data`);
+      }
+
+      // Small delay to be respectful
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+    } catch (error) {
+      console.error('[URL Scrape] Error:', error.message);
+      errors.push(`${url}: ${error.message}`);
+    }
+  }
+
+  // Save successful listings
+  let saved = 0;
+  const saveErrors = [];
+
+  for (const listing of listings) {
+    try {
+      const id = `url_${Date.now()}_${saved}`;
+      saveProfile({
+        id,
+        title: listing.title,
+        price: listing.price,
+        condition: listing.condition || 'Used - Good',
+        description: listing.description || '',
+        images: listing.images || [],
+        url: listing.url,
+        source: 'url_scrape',
+      });
+      saved++;
+    } catch (err) {
+      saveErrors.push(err.message);
+    }
+  }
+
+  return res.json({
+    ok: true,
+    total: urls.length,
+    processed,
+    synced: saved,
+    errors: [...errors, ...saveErrors],
+    listings: listings.slice(0, 3), // Return first 3 for preview
+  });
+});
+
+// Helper function to extract listing data from Facebook HTML
+function extractListingFromHtml(html, url) {
+  try {
+    // Try multiple extraction methods
+
+    // Method 1: Look for JSON-LD structured data
+    const jsonLdMatches = html.match(/<script type="application\/ld\+json"[^>]*>(.*?)<\/script>/gis);
+    if (jsonLdMatches) {
+      for (const match of jsonLdMatches) {
+        try {
+          const jsonContent = match.replace(/<script[^>]*>/i, '').replace(/<\/script>/i, '');
+          const data = JSON.parse(jsonContent);
+          if (data['@type'] === 'Product' && data.name) {
+            return {
+              title: data.name,
+              price: data.offers?.price ? `$${data.offers.price}` : '',
+              description: data.description || '',
+              images: data.image ? [data.image] : [],
+              url: url,
+              condition: 'Used - Good'
+            };
+          }
+        } catch (e) {
+          // Skip malformed JSON
+        }
+      }
+    }
+
+    // Method 2: Extract from meta tags
+    const titleMatch = html.match(/<title>(.*?)<\/title>/i);
+    const title = titleMatch ? titleMatch[1].replace(' | Facebook Marketplace', '').trim() : '';
+
+    // Method 3: Look for price patterns in the HTML
+    const priceRegex = /\$[\d,]+(?:\.\d{2})?/g;
+    const prices = html.match(priceRegex) || [];
+    const price = prices.length > 0 ? prices[0] : '';
+
+    // Method 4: Extract description from meta description
+    const descMatch = html.match(/<meta name="description" content="([^"]*)"/i);
+    let description = descMatch ? descMatch[1] : '';
+
+    // Clean up description
+    description = description.replace(' | Facebook Marketplace', '').trim();
+
+    // Method 5: Look for images
+    const images = [];
+    const imgMatches = html.match(/<img[^>]*src="([^"]*)"[^>]*>/gi);
+    if (imgMatches) {
+      for (const imgMatch of imgMatches) {
+        const srcMatch = imgMatch.match(/src="([^"]*)"/i);
+        if (srcMatch && srcMatch[1]) {
+          const imgUrl = srcMatch[1];
+          // Skip small/thumbnail images
+          if (!imgUrl.includes('static.xx.fbcdn.net/rsrc.php') && imgUrl.length > 50) {
+            images.push(imgUrl);
+          }
+        }
+      }
+    }
+
+    // Only return if we have at least a title
+    if (title && title.length > 5) {
+      return {
+        title: title.substring(0, 100),
+        price: price || '',
+        description: description || '',
+        images: images.slice(0, 5), // Max 5 images
+        url: url,
+        condition: 'Used - Good'
+      };
+    }
+
+  } catch (error) {
+    console.error('[Extract] Error:', error.message);
+  }
+
+  return null;
+}
+
 app.post("/api/sync/facebook", setupLimiter, requireSetupAccess, async (req, res) => {
   return res.status(501).json({ 
     error: "Cloud Sync is disabled for stability. Please use the Magic Bookmarklet on the setup page for foolproof syncing.",

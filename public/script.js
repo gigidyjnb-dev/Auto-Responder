@@ -33,6 +33,9 @@ const csvStatus = document.getElementById('csvStatus');
 const profileSyncForm = document.getElementById('profileSyncForm');
 const profileSyncStatus = document.getElementById('profileSyncStatus');
 
+const urlSyncForm = document.getElementById('urlSyncForm');
+const urlSyncStatus = document.getElementById('urlSyncStatus');
+
 const onboardingCard = document.getElementById('onboardingCard');
 const quickStartForm = document.getElementById('quickStartForm');
 const quickStartStatus = document.getElementById('quickStartStatus');
@@ -263,7 +266,58 @@ manualEntryForm.addEventListener('submit', async (event) => {
   }
 });
 
-// ── Paste multiple listings ────────────────────────────
+// ── URL-based listing import ───────────────────────────
+urlSyncForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  setStatus(urlSyncStatus, 'Fetching listings from URLs...', 'info');
+
+  const urlsText = document.getElementById('listingUrls').value.trim();
+  if (!urlsText) {
+    setStatus(urlSyncStatus, 'Please paste some Facebook Marketplace URLs.', 'error');
+    return;
+  }
+
+  const urls = urlsText.split('\n')
+    .map(url => url.trim())
+    .filter(url => url && (url.includes('facebook.com/marketplace') || url.includes('facebook.com/share')));
+
+  if (urls.length === 0) {
+    setStatus(urlSyncStatus, 'No valid Facebook Marketplace URLs found.', 'error');
+    return;
+  }
+
+  setStatus(urlSyncStatus, `Fetching ${urls.length} listings...`, 'info');
+
+  try {
+    const res = await fetch('/api/scrape/urls', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls })
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      setStatus(urlSyncStatus, data.error || 'Failed to fetch listings.', 'error');
+      return;
+    }
+
+    const synced = data.synced || 0;
+    const total = data.total || urls.length;
+
+    if (synced > 0) {
+      setStatus(urlSyncStatus, `✅ Successfully imported ${synced}/${total} listings!`, 'success');
+      await loadListings();
+      await loadStats();
+    } else {
+      setStatus(urlSyncStatus, `No listings could be imported. Check URLs are public Facebook Marketplace listings.`, 'error');
+    }
+
+  } catch {
+    setStatus(urlSyncStatus, 'Failed to fetch listings. Check your connection.', 'error');
+  }
+});
+
+// ── Profile sync ────────────────────────────────────
 pasteEntryForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   setStatus(pasteStatus, 'Parsing listings...');
