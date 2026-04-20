@@ -461,7 +461,7 @@ app.get('/api/runtime', (_req, res) => {
 });
 
 app.get('/api/config/webhook', (req, res) => {
-  const webhookKey = process.env.WEBHOOK_API_KEY || process.env.INTEGRATION_API_KEY || 'demo123';
+  const webhookKey = process.env.WEBHOOK_API_KEY || process.env.INTEGRATION_API_KEY || '';
   const protocol = req.protocol;
   const host = req.get('host');
   const webhookUrl = `${protocol}://${host}/api/webhook/listings`;
@@ -1140,7 +1140,7 @@ app.post('/api/webhook/listings', async (req, res) => {
   const { listings, api_key } = req.body || {};
 
   // Simple API key check - if they provide correct key, accept
-  const validKey = process.env.WEBHOOK_API_KEY || process.env.INTEGRATION_API_KEY || 'demo123';
+  const validKey = process.env.WEBHOOK_API_KEY || process.env.INTEGRATION_API_KEY || '';
   if (api_key && api_key !== validKey) {
     return res.status(401).json({ error: 'Invalid API key' });
   }
