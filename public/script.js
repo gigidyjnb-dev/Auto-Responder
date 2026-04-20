@@ -41,6 +41,9 @@ const demoSection = document.getElementById('demoSection');
 const demoForm = document.getElementById('demoForm');
 const demoResponse = document.getElementById('demoResponse');
 
+const globalAutoReplyToggle = document.getElementById('globalAutoReplyToggle');
+const arStatusText = document.getElementById('arStatusText');
+
 const statHotEl = document.getElementById('statHot');
 const statWarmEl = document.getElementById('statWarm');
 const statListingsEl = document.getElementById('statListings');
@@ -433,11 +436,10 @@ profileSyncForm.addEventListener('submit', async (event) => {
 quickStartForm.addEventListener('submit', async (event) => {
   event.preventDefault();
 
-  const title = document.getElementById('quickTitle').value.trim();
-  const price = document.getElementById('quickPrice').value.trim();
+  const listingsText = document.getElementById('quickListings').value.trim();
 
-  if (!title) {
-    quickStartStatus.textContent = 'Please enter a title for your listing.';
+  if (!listingsText) {
+    quickStartStatus.textContent = 'Please paste your listings.';
     quickStartStatus.style.color = '#ff6b6b';
     return;
   }
@@ -446,29 +448,63 @@ quickStartForm.addEventListener('submit', async (event) => {
   quickStartStatus.style.color = '#fff';
 
   try {
-    // Add the listing
-    const res = await fetch('/api/listings/bulk', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        listings: [{
-          title,
-          price,
+    // Parse the listings text
+    const lines = listingsText.split('\n').filter(line => line.trim());
+    const listings = [];
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      // Parse "Title - Price" format
+      let title = trimmed;
+      let price = '';
+
+      if (trimmed.includes(' - ')) {
+        const parts = trimmed.split(' - ');
+        title = parts[0].trim();
+        price = parts.slice(1).join(' - ').trim();
+      } else if (trimmed.match(/,\s*\$/) || trimmed.match(/\s\$\d/)) {
+        // Handle "Title, $Price" or "Title $Price"
+        const match = trimmed.match(/^(.+?)[\s,]+(\$\d[\d,]*(?:\.\d{2})?)\s*$/);
+        if (match) {
+          title = match[1].trim();
+          price = match[2];
+        }
+      }
+
+      if (title.length > 0) {
+        listings.push({
+          title: title.substring(0, 100),
+          price: price || '',
           condition: 'Used - Good',
           description: `This is a ${title} available for sale.`
-        }]
-      })
-    });
+        });
+      }
+    }
 
-    const data = await res.json();
-    if (!res.ok) {
-      quickStartStatus.textContent = data.error || 'Failed to add listing.';
+    if (listings.length === 0) {
+      quickStartStatus.textContent = 'Could not parse any listings. Use format: Title - $Price';
       quickStartStatus.style.color = '#ff6b6b';
       return;
     }
 
-    // Success! Reload everything
-    quickStartStatus.textContent = '✅ Success! Your auto-responder is ready. Try generating a response below!';
+    // Add all listings at once
+    const res = await fetch('/api/listings/bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ listings })
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      quickStartStatus.textContent = data.error || 'Failed to add listings.';
+      quickStartStatus.style.color = '#ff6b6b';
+      return;
+    }
+
+    const count = data.synced || data.count || listings.length;
+    quickStartStatus.textContent = `✅ Success! Added ${count} listings. Your auto-responder is ready!`;
     quickStartStatus.style.color = '#28a745';
 
     setTimeout(() => {
@@ -571,7 +607,47 @@ async function loadStats() {
   }
 }
 
+// ── Global auto-reply toggle ──────────────────────────
+globalAutoReplyToggle.addEventListener('change', async (e) => {
+  const enabled = e.target.checked;
+
+  // Store locally
+  localStorage.setItem('globalAutoReplyEnabled', enabled);
+
+  // Update status
+  arStatusText.textContent = enabled ? 'ON - Auto-replying to messages' : 'OFF';
+  arStatusText.style.color = enabled ? '#28a745' : '#666';
+
+  // Try to communicate with extension if available
+  try {
+    // This will only work if user has the extension installed
+    if (chrome && chrome.runtime) {
+      chrome.runtime.sendMessage({
+        action: 'setAutoReply',
+        enabled: enabled
+      });
+    }
+  } catch (err) {
+    // Extension not available - that's ok
+  }
+
+  // Update visual status
+  const statusEl = document.getElementById('autoReplyStatus');
+  statusEl.innerHTML = enabled ?
+    'Status: <span style="color: #28a745; font-weight: bold;">ON</span> - Auto-replying to messages' :
+    'Status: <span style="color: #666;">OFF</span> - Manual replies only';
+});
+
+// Load auto-reply preference on page load
+function loadAutoReplyPreference() {
+  const enabled = localStorage.getItem('globalAutoReplyEnabled') === 'true';
+  globalAutoReplyToggle.checked = enabled;
+  arStatusText.textContent = enabled ? 'ON - Auto-replying to messages' : 'OFF';
+  arStatusText.style.color = enabled ? '#28a745' : '#666';
+}
+
 // ── Init ──────────────────────────────────────────────
 loadListings();
 loadStats();
+loadAutoReplyPreference();
 

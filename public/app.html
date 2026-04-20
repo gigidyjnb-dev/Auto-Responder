@@ -32,28 +32,31 @@
         </p>
       </header>
 
-      <!-- ONBOARDING CARD - Only show if no listings -->
+      <!-- ULTRA-SIMPLE ONBOARDING -->
       <section class="card" id="onboardingCard" style="display:none; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
-        <div style="text-align: center; padding: 20px 0;">
-          <h1 style="color: white; font-size: 24px; margin-bottom: 8px;">🚀 Get Started in 30 Seconds</h1>
-          <p style="margin-bottom: 20px; opacity: 0.9;">No technical setup required. Just add your listings below.</p>
+        <div style="text-align: center; padding: 30px 0;">
+          <h1 style="color: white; font-size: 28px; margin-bottom: 8px;">🤖 Auto-Reply in 30 Seconds</h1>
+          <p style="margin-bottom: 24px; opacity: 0.9; font-size: 16px;">Just paste your listings below. That's it.</p>
 
-          <form id="quickStartForm" style="max-width: 400px; margin: 0 auto;">
-            <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 12px; margin-bottom: 16px;">
-              <label style="display: block; color: white; font-weight: 600; margin-bottom: 8px;">Add Your First Listing</label>
-              <input type="text" id="quickTitle" placeholder="e.g., iPhone 13 Pro Max" required
-                     style="width: 100%; padding: 12px; border: none; border-radius: 8px; margin-bottom: 8px; font-size: 16px;" />
-              <input type="text" id="quickPrice" placeholder="e.g., $600"
-                     style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 16px;" />
+          <form id="quickStartForm" style="max-width: 500px; margin: 0 auto;">
+            <div style="background: rgba(255,255,255,0.1); padding: 24px; border-radius: 16px; margin-bottom: 20px;">
+              <label style="display: block; color: white; font-weight: 600; margin-bottom: 12px; font-size: 16px;">Paste Your Facebook Marketplace Listings</label>
+              <textarea id="quickListings" rows="6" placeholder="Example:
+iPhone 13 Pro Max - $600
+MacBook Air M2 - $850
+Sony WH-1000XM5 Headphones - $180
+Vintage Leather Jacket - $85
+IKEA Kallax Shelf Unit - $65" required
+                        style="width: 100%; padding: 16px; border: none; border-radius: 8px; font-size: 14px; line-height: 1.4; resize: vertical;"></textarea>
             </div>
-            <button type="submit" style="width: 100%; padding: 16px; background: #28a745; color: white; border: none; border-radius: 12px; font-size: 18px; font-weight: 700; cursor: pointer;">
-              ✅ Start Auto-Replying Now
+            <button type="submit" style="width: 100%; padding: 18px; background: #28a745; color: white; border: none; border-radius: 12px; font-size: 18px; font-weight: 700; cursor: pointer; transition: all 0.2s;">
+              🚀 Start Auto-Replying Now
             </button>
           </form>
-          <div id="quickStartStatus" style="margin-top: 12px; font-size: 14px;"></div>
+          <div id="quickStartStatus" style="margin-top: 16px; font-size: 15px; font-weight: 500;"></div>
 
-          <div style="margin-top: 20px; font-size: 14px; opacity: 0.8;">
-            <p>💡 <strong>Pro tip:</strong> After adding one listing, you can generate instant responses to buyer questions!</p>
+          <div style="margin-top: 24px; font-size: 14px; opacity: 0.8; padding: 16px; background: rgba(255,255,255,0.05); border-radius: 8px;">
+            <p>💡 <strong>How it works:</strong> Paste your listings → Get AI responses to buyer questions → Turn on auto-reply → Profit!</p>
           </div>
         </div>
       </section>
@@ -73,6 +76,24 @@
             <div class="stat-label">📦 Listings</div>
           </div>
         </div>
+
+        <!-- AUTO-REPLY TOGGLE -->
+        <div style="margin-top: 20px; padding: 16px; background: #e8f5e9; border-radius: 8px; border: 2px solid #4caf50;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+            <div>
+              <h3 style="margin: 0; color: #2e7d32; font-size: 16px;">🤖 Auto-Reply Status</h3>
+              <p style="margin: 4px 0 0 0; font-size: 13px; color: #555;">Automatically respond to Facebook Marketplace messages</p>
+            </div>
+            <label class="switch" style="margin: 0;">
+              <input type="checkbox" id="globalAutoReplyToggle">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div id="autoReplyStatus" style="font-size: 13px; font-weight: 500; color: #666;">
+            Status: <span id="arStatusText">OFF</span>
+          </div>
+        </div>
+
         <p class="subtitle" style="font-size:12px;margin-top:12px;">
           <strong>🔥 Ready to Buy</strong> = Buyers showing strong commitment signals. Prioritize these!
         </p>
@@ -111,14 +132,17 @@
         </div>
 
         <!-- Quick demo for new users -->
-        <div id="demoSection" class="hidden" style="background: #e8f5e9; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
-          <h3 style="margin: 0 0 8px 0; color: #2e7d32;">🎯 Try It Now!</h3>
-          <p style="margin: 0 0 12px 0; font-size: 14px;">Enter a buyer question below and see your auto-responder in action:</p>
-          <form id="demoForm">
-            <input id="demoQuestion" type="text" placeholder="e.g., Is this still available?" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ddd; margin-bottom: 8px;" />
-            <button type="submit" style="padding: 8px 16px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">Generate Reply</button>
+        <div id="demoSection" class="hidden" style="background: #f0f8ff; padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 2px solid #4caf50;">
+          <h3 style="margin: 0 0 8px 0; color: #2e7d32; font-size: 18px;">🎯 Test Your Auto-Responder</h3>
+          <p style="margin: 0 0 16px 0; font-size: 14px; color: #555;">Type a buyer question below to see how your AI responds:</p>
+          <form id="demoForm" style="display: flex; gap: 8px; margin-bottom: 12px;">
+            <input id="demoQuestion" type="text" placeholder="e.g., Is this still available? Can you do $50?" style="flex: 1; padding: 12px; border-radius: 6px; border: 1px solid #ddd; font-size: 14px;" />
+            <button type="submit" style="padding: 12px 20px; background: #28a745; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">Generate Reply</button>
           </form>
-          <div id="demoResponse" style="margin-top: 8px; padding: 8px; background: white; border-radius: 4px; border: 1px solid #ddd;"></div>
+          <div id="demoResponse" style="padding: 12px; background: white; border-radius: 6px; border: 1px solid #ddd; min-height: 40px; font-size: 14px; line-height: 1.4;"></div>
+          <div style="margin-top: 12px; font-size: 12px; color: #666;">
+            💡 <strong>Pro tip:</strong> Turn on auto-reply above to respond to real Facebook messages automatically!
+          </div>
         </div>
 
         <form id="respondForm" class="stack">
