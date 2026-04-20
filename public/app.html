@@ -32,6 +32,32 @@
         </p>
       </header>
 
+      <!-- ONBOARDING CARD - Only show if no listings -->
+      <section class="card" id="onboardingCard" style="display:none; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
+        <div style="text-align: center; padding: 20px 0;">
+          <h1 style="color: white; font-size: 24px; margin-bottom: 8px;">🚀 Get Started in 30 Seconds</h1>
+          <p style="margin-bottom: 20px; opacity: 0.9;">No technical setup required. Just add your listings below.</p>
+
+          <form id="quickStartForm" style="max-width: 400px; margin: 0 auto;">
+            <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 12px; margin-bottom: 16px;">
+              <label style="display: block; color: white; font-weight: 600; margin-bottom: 8px;">Add Your First Listing</label>
+              <input type="text" id="quickTitle" placeholder="e.g., iPhone 13 Pro Max" required
+                     style="width: 100%; padding: 12px; border: none; border-radius: 8px; margin-bottom: 8px; font-size: 16px;" />
+              <input type="text" id="quickPrice" placeholder="e.g., $600"
+                     style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 16px;" />
+            </div>
+            <button type="submit" style="width: 100%; padding: 16px; background: #28a745; color: white; border: none; border-radius: 12px; font-size: 18px; font-weight: 700; cursor: pointer;">
+              ✅ Start Auto-Replying Now
+            </button>
+          </form>
+          <div id="quickStartStatus" style="margin-top: 12px; font-size: 14px;"></div>
+
+          <div style="margin-top: 20px; font-size: 14px; opacity: 0.8;">
+            <p>💡 <strong>Pro tip:</strong> After adding one listing, you can generate instant responses to buyer questions!</p>
+          </div>
+        </div>
+      </section>
+
       <section class="card" id="statsCard">
         <div class="stats-grid">
           <div class="stat-box stat-hot">
@@ -83,6 +109,18 @@
         <div id="activeListingBadge" class="active-listing-badge hidden">
           Responding for: <strong id="activeListingTitle"></strong>
         </div>
+
+        <!-- Quick demo for new users -->
+        <div id="demoSection" class="hidden" style="background: #e8f5e9; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+          <h3 style="margin: 0 0 8px 0; color: #2e7d32;">🎯 Try It Now!</h3>
+          <p style="margin: 0 0 12px 0; font-size: 14px;">Enter a buyer question below and see your auto-responder in action:</p>
+          <form id="demoForm">
+            <input id="demoQuestion" type="text" placeholder="e.g., Is this still available?" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ddd; margin-bottom: 8px;" />
+            <button type="submit" style="padding: 8px 16px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">Generate Reply</button>
+          </form>
+          <div id="demoResponse" style="margin-top: 8px; padding: 8px; background: white; border-radius: 4px; border: 1px solid #ddd;"></div>
+        </div>
+
         <form id="respondForm" class="stack">
           <select id="channel">
             <option value="facebook_marketplace">Facebook Marketplace</option>

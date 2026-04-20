@@ -19,6 +19,8 @@ const responseBox    = document.getElementById('responseBox');
 const activeListingBadge = document.getElementById('activeListingBadge');
 const activeListingTitle = document.getElementById('activeListingTitle');
 
+const statsCard = document.getElementById('statsCard');
+
 const manualEntryForm = document.getElementById('manualEntryForm');
 const manualStatus = document.getElementById('manualStatus');
 
@@ -30,6 +32,14 @@ const csvStatus = document.getElementById('csvStatus');
 
 const profileSyncForm = document.getElementById('profileSyncForm');
 const profileSyncStatus = document.getElementById('profileSyncStatus');
+
+const onboardingCard = document.getElementById('onboardingCard');
+const quickStartForm = document.getElementById('quickStartForm');
+const quickStartStatus = document.getElementById('quickStartStatus');
+
+const demoSection = document.getElementById('demoSection');
+const demoForm = document.getElementById('demoForm');
+const demoResponse = document.getElementById('demoResponse');
 
 const statHotEl = document.getElementById('statHot');
 const statWarmEl = document.getElementById('statWarm');
@@ -68,6 +78,17 @@ async function loadListings() {
       : listings.map((l) =>
           `<option value="${l.id}">${l.title}${l.price ? ' · ' + l.price : ''}</option>`
         ).join('');
+
+    // Show/hide onboarding and demo
+    if (listings.length === 0) {
+      onboardingCard.style.display = 'block';
+      statsCard.style.display = 'none';
+      demoSection.classList.add('hidden');
+    } else {
+      onboardingCard.style.display = 'none';
+      statsCard.style.display = 'block';
+      demoSection.classList.remove('hidden');
+    }
 
     // Auto-select most recent
     if (listings.length > 0 && !activeListingId) {
@@ -405,6 +426,91 @@ profileSyncForm.addEventListener('submit', async (event) => {
 
   } catch {
     setStatus(profileSyncStatus, 'Failed to sync. Check server connection.', 'error');
+  }
+});
+
+// ── Quick start onboarding ────────────────────────────
+quickStartForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+
+  const title = document.getElementById('quickTitle').value.trim();
+  const price = document.getElementById('quickPrice').value.trim();
+
+  if (!title) {
+    quickStartStatus.textContent = 'Please enter a title for your listing.';
+    quickStartStatus.style.color = '#ff6b6b';
+    return;
+  }
+
+  quickStartStatus.textContent = 'Setting up your auto-responder...';
+  quickStartStatus.style.color = '#fff';
+
+  try {
+    // Add the listing
+    const res = await fetch('/api/listings/bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        listings: [{
+          title,
+          price,
+          condition: 'Used - Good',
+          description: `This is a ${title} available for sale.`
+        }]
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      quickStartStatus.textContent = data.error || 'Failed to add listing.';
+      quickStartStatus.style.color = '#ff6b6b';
+      return;
+    }
+
+    // Success! Reload everything
+    quickStartStatus.textContent = '✅ Success! Your auto-responder is ready. Try generating a response below!';
+    quickStartStatus.style.color = '#28a745';
+
+    setTimeout(() => {
+      loadListings();
+      loadStats();
+    }, 500);
+
+  } catch {
+    quickStartStatus.textContent = 'Failed to set up. Please try again.';
+    quickStartStatus.style.color = '#ff6b6b';
+  }
+});
+
+// ── Demo response ────────────────────────────────────
+demoForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+
+  const question = document.getElementById('demoQuestion').value.trim();
+  if (!question) return;
+
+  demoResponse.textContent = 'Generating reply...';
+
+  try {
+    const res = await fetch('/api/respond', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customerName: 'Demo Buyer',
+        question,
+        channel: 'facebook_marketplace',
+        listingId: activeListingId
+      })
+    });
+
+    const data = await res.json();
+    if (res.ok) {
+      demoResponse.textContent = data.answer;
+    } else {
+      demoResponse.textContent = 'Error: ' + (data.error || 'Unknown error');
+    }
+  } catch {
+    demoResponse.textContent = 'Failed to generate response';
   }
 });
 
