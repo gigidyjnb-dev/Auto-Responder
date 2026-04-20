@@ -1112,11 +1112,79 @@ app.post('/api/listings/bulk', setupLimiter, requireSetupAccess, (req, res) => {
     count: saved,
     synced: saved,
     failed: errors.length,
-    errors: errors.length ? errors : undefined,
+errors: errors.length ? errors : undefined,
     requestId,
   });
 });
 
+// ============================================
+// Webhook for Automation (Zapier/Make/n8n)
+// Simple endpoint to receive listings from any source
+// ============================================
+app.post('/api/webhook/listings', async (req, res) => {
+  const { listings, api_key } = req.body || {};
+  
+  // Simple API key check - if they provide correct key, accept
+  const validKey = process.env.WEBHOOK_API_KEY || 'demo123';
+  if (api_key && api_key !== validKey) {
+    return res.status(401).json({ error: 'Invalid API key' });
+  }
+  
+  if (!Array.isArray(listings) || listings.length === 0) {
+    return res.status(400).json({ error: 'No listings provided' });
+  }
+  
+  let saved = 0;
+  const errors = [];
+  
+  for (let i = 0; i < listings.length; i++) {
+    try {
+      const item = listings[i];
+      const id = item.id || `webhook_${Date.now()}_${i}`;
+      const title = String(item.title || item.name || '').trim();
+      if (!title) continue;
+      
+      saveProfile({
+        id,
+        title,
+        price: String(item.price || '').trim(),
+        condition: String(item.condition || item.description || '').trim().slice(0, 80),
+        description: String(item.description || item.details || '').trim(),
+        images: item.images || [],
+        url: item.url || '',
+        source: 'webhook',
+      });
+      saved++;
+    } catch (err) {
+      errors.push(err.message);
+    }
+  }
+  
+  return res.json({ ok: true, synced: saved, total: listings.length, errors });
+});
+
+app.get('/api/webhook/listings', async (req, res) => {
+  const { api_key, title, price } = req.query;
+  const validKey = process.env.WEBHOOK_API_KEY || 'demo123';
+  
+  if (api_key !== validKey) {
+    return res.status(401).json({ error: 'Invalid API key' });
+  }
+  
+  if (!title) {
+    return res.status(400).json({ error: 'title is required' });
+  }
+  
+  const id = `webhook_${Date.now()}`;
+  saveProfile({
+    id,
+    title: String(title),
+    price: String(price || ''),
+    source: 'webhook',
+  });
+  
+  return res.json({ ok: true, id, title });
+});
 
 app.post("/api/sync/facebook", setupLimiter, requireSetupAccess, async (req, res) => {
   return res.status(501).json({ 
