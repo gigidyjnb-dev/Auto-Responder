@@ -108,26 +108,35 @@ $('quickSetupBtn').addEventListener('click', async () => {
     return;
   }
   
-  // Validate URL format
+  // Validate URL format - extract just the origin
   let url = urlInput.trim();
   if (!url.includes('.') || url.includes(' ')) {
-    setStatus('setupStatus', 'Invalid URL. Use format: https://your-app.up.railway.app', 'error');
+    setStatus('setupStatus', 'Invalid URL. Enter just: marketplace-auto-responder-production-dbda.up.railway.app', 'error');
     return;
   }
   
+  // Handle http vs https
   if (!url.startsWith('http')) url = 'https://' + url;
-  url = url.replace(/\/$/, '');
+  
+  // Extract just the origin (protocol + host) - remove any path
+  try {
+    const u = new URL(url);
+    url = u.origin;
+  } catch(e) {
+    url = 'https://' + url.split('/')[0];
+  }
+  
+  console.log('[Setup] Using origin URL:', url);
 
   $('quickSetupBtn').disabled = true;
-  setStatus('setupStatus', 'Setting up...', 'info');
+  setStatus('setupStatus', 'Connecting to ' + url + '...', 'info');
   showProgress(10);
 
   try {
     // Test connection first
     showProgress(20);
-    console.log('[Setup] Testing URL:', url);
-    const testRes = await fetch(`${url}/health`, { signal: AbortSignal.timeout(10000) });
-    if (!testRes.ok) throw new Error('Cannot connect to server at ' + url);
+    const testRes = await fetch(`${url}/health`, { signal: AbortSignal.timeout(15000) });
+    if (!testRes.ok) throw new Error('Could not connect to server');
 
     // Get current tab
     showProgress(30);
@@ -146,7 +155,9 @@ $('quickSetupBtn').addEventListener('click', async () => {
     // Upload to server
     showProgress(70);
     setStatus('setupStatus', `Uploading ${listings.length} listings...`, 'info');
-    const uploadRes = await fetch(`${url}/api/listings/bulk`, {
+    const uploadUrl = url + '/api/listings/bulk';
+    console.log('[Setup] Uploading to:', uploadUrl);
+    const uploadRes = await fetch(uploadUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ listings, platform: 'facebook_marketplace' })
