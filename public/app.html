@@ -151,17 +151,41 @@
         <div id="csvStatus" class="status"></div>
       </section>
 
-      <section class="card">
+<section class="card">
         <h2>4) Sync Your Listings Automatically</h2>
         <p class="subtitle" style="font-size: 14px; margin-bottom: 16px;">
-          <strong>How to sync your listings:</strong>
+          Choose the method that works best for you:
         </p>
-        <ol style="font-size: 13px; line-height: 1.8; margin-bottom: 16px; padding-left: 20px;">
-          <li><strong>1.</strong> Download & install the Chrome extension (button below)</li>
-          <li><strong>2.</strong> Open Facebook Marketplace → <a href="https://www.facebook.com/marketplace/you/selling" target="_blank" style="color: var(--accent-strong);">Your Listings</a></li>
-          <li><strong>3.</strong> Scroll down to load ALL your listings</li>
-          <li><strong>4.</strong> Click the extension icon → click <strong>Sync My Listings</strong></li>
-        </ol>
+
+        <!-- Method 1: Dashboard Auto-Fetch -->
+        <div class="sync-method" style="margin-bottom: 20px; padding: 16px; border: 2px solid #e1f5fe; border-radius: 8px; background: #f8f9fa;">
+          <h3 style="margin: 0 0 8px 0; color: #0066ff;">🖥️ Method 1: Quick Dashboard Sync (Under 20 listings)</h3>
+          <p style="font-size: 13px; margin-bottom: 12px; color: #555;">No extension needed! Just paste your Marketplace profile URL.</p>
+
+          <form id="profileSyncForm" style="display: flex; gap: 8px; margin-bottom: 8px;">
+            <input type="text" id="profileUrl" placeholder="https://www.facebook.com/marketplace/profile/1234567890" style="flex: 1;" />
+            <button type="submit" class="btn-secondary" style="padding: 8px 16px;">🔄 Sync Listings</button>
+          </form>
+          <div id="profileSyncStatus" class="status"></div>
+        </div>
+
+        <!-- Method 2: Extension -->
+        <div class="sync-method" style="padding: 16px; border: 2px solid #e8f5e9; border-radius: 8px; background: #f8f9fa;">
+          <h3 style="margin: 0 0 8px 0; color: #28a745;">📦 Method 2: Chrome Extension (20+ listings)</h3>
+          <p style="font-size: 13px; margin-bottom: 12px; color: #555;">For sellers with many listings - installs a browser extension.</p>
+
+          <ol style="font-size: 13px; line-height: 1.8; margin-bottom: 16px; padding-left: 20px;">
+            <li><strong>1.</strong> Download & install the Chrome extension (button below)</li>
+            <li><strong>2.</strong> Open Facebook Marketplace → <a href="https://www.facebook.com/marketplace/you/selling" target="_blank">Your Listings</a></li>
+            <li><strong>3.</strong> Scroll down to load ALL your listings</li>
+            <li><strong>4.</strong> Click the extension icon → click <strong>Sync My Listings</strong></li>
+          </ol>
+
+          <a href="/extension.html" class="btn-primary" style="display: inline-block; text-decoration: none; margin-top: 8px;">
+            📦 Get Sync Extension
+          </a>
+        </div>
+
         <div class="platform-grid" style="margin: 16px 0;">
           <div class="platform-badge">Facebook Marketplace</div>
           <div class="platform-badge">eBay</div>
@@ -171,9 +195,6 @@
           <div class="platform-badge">Poshmark</div>
           <div class="platform-badge">Craigslist</div>
         </div>
-        <a href="/extension.html" class="btn-primary" style="display: inline-block; text-decoration: none;">
-          📦 Get Sync Extension
-        </a>
       </section>
      </main>
 

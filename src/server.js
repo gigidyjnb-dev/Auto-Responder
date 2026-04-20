@@ -1166,15 +1166,15 @@ app.post('/api/webhook/listings', async (req, res) => {
 app.get('/api/webhook/listings', async (req, res) => {
   const { api_key, title, price } = req.query;
   const validKey = process.env.WEBHOOK_API_KEY || 'demo123';
-  
+
   if (api_key !== validKey) {
     return res.status(401).json({ error: 'Invalid API key' });
   }
-  
+
   if (!title) {
     return res.status(400).json({ error: 'title is required' });
   }
-  
+
   const id = `webhook_${Date.now()}`;
   saveProfile({
     id,
@@ -1182,8 +1182,200 @@ app.get('/api/webhook/listings', async (req, res) => {
     price: String(price || ''),
     source: 'webhook',
   });
-  
+
   return res.json({ ok: true, id, title });
+});
+
+// ============================================
+// Facebook Marketplace Profile Scraper
+// Like GetReplyNow - scrapes from public profile page
+// ============================================
+app.post('/api/scrape/profile', setupLimiter, requireSetupAccess, async (req, res) => {
+  const { profileUrl } = req.body || {};
+
+  if (!profileUrl || !profileUrl.includes('facebook.com/marketplace/profile')) {
+    return res.status(400).json({ error: 'Please provide a Facebook Marketplace profile URL' });
+  }
+
+  try {
+    // Extract profile ID from URL
+    const match = profileUrl.match(/\/profile\/(\d+)/);
+    if (!match) {
+      return res.status(400).json({ error: 'Invalid Facebook Marketplace profile URL format' });
+    }
+
+    const profileId = match[1];
+    const scrapeUrl = `https://www.facebook.com/marketplace/profile/${profileId}/`;
+
+    console.log('[Profile Scrape] Fetching:', scrapeUrl);
+
+    // Use fetch to get the page (server-side)
+    const response = await fetch(scrapeUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch profile: ${response.status}`);
+    }
+
+    const html = await response.text();
+    console.log('[Profile Scrape] Got HTML, length:', html.length);
+
+    // Extract listings from HTML - look for marketplace item data
+    const listings = [];
+
+    // Method 1: Look for JSON-LD structured data
+    const jsonLdMatches = html.match(/<script type="application\/ld\+json"[^>]*>(.*?)<\/script>/gis);
+    if (jsonLdMatches) {
+      for (const match of jsonLdMatches) {
+        try {
+          const jsonContent = match.replace(/<script[^>]*>/i, '').replace(/<\/script>/i, '');
+          const data = JSON.parse(jsonContent);
+          if (data['@type'] === 'Product' && data.name) {
+            listings.push({
+              title: data.name,
+              price: data.offers?.price || '',
+              description: data.description || '',
+              images: data.image ? [data.image] : [],
+              url: data.url || profileUrl,
+            });
+          }
+        } catch (e) {
+          // Skip malformed JSON
+        }
+      }
+    }
+
+    // Method 2: Extract from page text using regex patterns
+    if (listings.length === 0) {
+      // Look for price patterns: $123, $1,234, etc.
+      const priceRegex = /\$[\d,]+(?:\.\d{2})?/g;
+      const prices = html.match(priceRegex) || [];
+
+      // Look for title-like text near prices
+      const lines = html.split(/\n/).map(l => l.trim()).filter(l => l);
+
+      for (const price of prices) {
+        // Find text around this price
+        const priceIndex = html.indexOf(price);
+        if (priceIndex === -1) continue;
+
+        // Extract ~200 chars around the price
+        const start = Math.max(0, priceIndex - 100);
+        const end = Math.min(html.length, priceIndex + 100);
+        const context = html.substring(start, end);
+
+        // Clean up HTML tags
+        const cleanContext = context.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+
+        // Extract potential title (text before price)
+        const pricePos = cleanContext.indexOf(price);
+        if (pricePos > 0) {
+          const beforePrice = cleanContext.substring(0, pricePos).trim();
+          const words = beforePrice.split(' ');
+          // Take last 5-15 words as potential title
+          const titleWords = words.slice(-12).filter(w => w.length > 2 && !w.match(/^\d+$/));
+          const title = titleWords.join(' ');
+
+          if (title.length > 5 && title.length < 100) {
+            listings.push({
+              title: title,
+              price: price,
+              url: profileUrl,
+            });
+          }
+        }
+      }
+    }
+
+    // Method 3: Fallback - extract any text that looks like product names
+    if (listings.length === 0) {
+      const potentialTitles = [];
+      const titleRegex = /[A-Z][a-zA-Z\s]{10,80}(?=\s+\$|\s*[0-9])/g;
+      const matches = html.match(titleRegex) || [];
+
+      for (const match of matches) {
+        if (match.length > 10 && match.length < 80 && !match.includes('Facebook') && !match.includes('Marketplace')) {
+          potentialTitles.push(match.trim());
+        }
+      }
+
+      // Deduplicate and limit to 20
+      const uniqueTitles = [...new Set(potentialTitles)].slice(0, 20);
+
+      for (const title of uniqueTitles) {
+        listings.push({
+          title: title,
+          price: '',
+          url: profileUrl,
+        });
+      }
+    }
+
+    // Remove duplicates
+    const seen = new Set();
+    const uniqueListings = listings.filter(listing => {
+      const key = listing.title.toLowerCase().trim();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    console.log('[Profile Scrape] Found listings:', uniqueListings.length);
+
+    // If we found listings, save them
+    if (uniqueListings.length > 0) {
+      let saved = 0;
+      const errors = [];
+
+      for (let i = 0; i < uniqueListings.length; i++) {
+        try {
+          const listing = uniqueListings[i];
+          const id = `profile_${Date.now()}_${i}`;
+
+          saveProfile({
+            id,
+            title: listing.title,
+            price: listing.price,
+            condition: '',
+            description: listing.description || '',
+            images: listing.images || [],
+            url: listing.url,
+            source: 'profile_scrape',
+          });
+          saved++;
+        } catch (err) {
+          errors.push(`Listing ${i}: ${err.message}`);
+        }
+      }
+
+      return res.json({
+        ok: true,
+        synced: saved,
+        total: uniqueListings.length,
+        errors: errors.length ? errors : undefined,
+        listings: uniqueListings.slice(0, 5), // Return first 5 for preview
+      });
+    }
+
+    return res.status(404).json({
+      error: 'No listings found on this profile. Make sure the profile is public and has active listings.',
+      profileUrl,
+    });
+
+  } catch (error) {
+    console.error('[Profile Scrape] Error:', error);
+    return res.status(500).json({
+      error: 'Failed to scrape profile: ' + error.message
+    });
+  }
 });
 
 app.post("/api/sync/facebook", setupLimiter, requireSetupAccess, async (req, res) => {

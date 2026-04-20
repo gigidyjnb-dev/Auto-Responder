@@ -28,6 +28,9 @@ const pasteStatus = document.getElementById('pasteStatus');
 const csvEntryForm = document.getElementById('csvEntryForm');
 const csvStatus = document.getElementById('csvStatus');
 
+const profileSyncForm = document.getElementById('profileSyncForm');
+const profileSyncStatus = document.getElementById('profileSyncStatus');
+
 const statHotEl = document.getElementById('statHot');
 const statWarmEl = document.getElementById('statWarm');
 const statListingsEl = document.getElementById('statListings');
@@ -369,6 +372,40 @@ csvEntryForm.addEventListener('submit', async (event) => {
   };
 
   reader.readAsText(fileInput.files[0]);
+});
+
+// ── Profile sync ────────────────────────────────────
+profileSyncForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  setStatus(profileSyncStatus, 'Fetching listings from profile...', 'info');
+
+  const profileUrl = document.getElementById('profileUrl').value.trim();
+  if (!profileUrl) {
+    setStatus(profileSyncStatus, 'Please enter a Facebook Marketplace profile URL.', 'error');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/scrape/profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profileUrl })
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      setStatus(profileSyncStatus, data.error || 'Failed to scrape profile.', 'error');
+      return;
+    }
+
+    const count = data.synced || 0;
+    setStatus(profileSyncStatus, `✅ Synced ${count} listings from your profile!`, 'success');
+    await loadListings();
+    await loadStats();
+
+  } catch {
+    setStatus(profileSyncStatus, 'Failed to sync. Check server connection.', 'error');
+  }
 });
 
 // ── Generate response ─────────────────────────────────
