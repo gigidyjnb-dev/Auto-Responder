@@ -460,8 +460,21 @@ app.get('/api/runtime', (_req, res) => {
   });
 });
 
+app.get('/api/config/webhook', (req, res) => {
+  const webhookKey = process.env.WEBHOOK_API_KEY || 'demo123';
+  const webhookUrl = `https://your-domain.com/api/webhook/listings`; // Placeholder
+  res.json({
+    webhookUrl,
+    apiKey: webhookKey,
+  });
+});
+
 app.get('/health', sendHealth);
 app.get('/api/health', sendHealth);
+
+app.get('/listings', (req, res) => {
+    res.sendFile(path.join(__dirname, '..', 'public', 'listings.html'));
+});
 
 app.get('/webhook/facebook', (req, res) => {
   if (!isConfigured()) {
@@ -1123,28 +1136,28 @@ errors: errors.length ? errors : undefined,
 // ============================================
 app.post('/api/webhook/listings', async (req, res) => {
   const { listings, api_key } = req.body || {};
-  
+
   // Simple API key check - if they provide correct key, accept
   const validKey = process.env.WEBHOOK_API_KEY || 'demo123';
   if (api_key && api_key !== validKey) {
     return res.status(401).json({ error: 'Invalid API key' });
   }
-  
+
   if (!Array.isArray(listings) || listings.length === 0) {
     return res.status(400).json({ error: 'No listings provided' });
   }
-  
+
   let saved = 0;
   const errors = [];
-  
+
   for (let i = 0; i < listings.length; i++) {
     try {
       const item = listings[i];
       const id = item.id || `webhook_${Date.now()}_${i}`;
       const title = String(item.title || item.name || '').trim();
       if (!title) continue;
-      
-      saveProfile({
+
+      const profile = {
         id,
         title,
         price: String(item.price || '').trim(),
@@ -1153,13 +1166,14 @@ app.post('/api/webhook/listings', async (req, res) => {
         images: item.images || [],
         url: item.url || '',
         source: 'webhook',
-      });
+      };
+      saveProfile(profile);
       saved++;
     } catch (err) {
       errors.push(err.message);
     }
   }
-  
+
   return res.json({ ok: true, synced: saved, total: listings.length, errors });
 });
 

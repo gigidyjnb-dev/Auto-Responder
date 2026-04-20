@@ -38,6 +38,48 @@ Payload example:
 
 This endpoint extracts sender identity and first-question text, then runs the same moderation/AI pipeline.
 
+## Webhook Integration for Listing Sync
+
+For automatic listing synchronization from marketplaces like FB Auto Reply AI, use webhooks to send listing data directly to your site.
+
+### Endpoint
+
+- `POST /api/webhook/listings`
+
+### Authentication
+
+- Header or body parameter: `api_key` (use `WEBHOOK_API_KEY` env var, defaults to `demo123`)
+
+### Payload Format
+
+```json
+{
+  "api_key": "your-api-key",
+  "listings": [
+    {
+      "title": "Vintage Leather Jacket",
+      "price": "$85",
+      "description": "Genuine leather jacket in excellent condition...",
+      "images": ["https://example.com/image1.jpg"],
+      "url": "https://marketplace.com/listing/123",
+      "condition": "Used - Excellent"
+    }
+  ]
+}
+```
+
+### Setup in Zapier/Make
+
+1. Create a new workflow triggered by marketplace listing changes
+2. Add a Webhook action that POSTs to `https://your-domain.com/api/webhook/listings`
+3. Include the `api_key` and `listings` array in the request body
+4. Listings will be automatically saved and displayed on your site
+
+### View Synced Listings
+
+- Public listings page: `/listings`
+- API endpoint: `GET /api/products`
+
 ## Outbound Approved Reply Dispatch
 
 When a queue item is approved (non-Facebook channels), the server can POST the approved reply to your automation bridge.

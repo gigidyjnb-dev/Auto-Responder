@@ -273,6 +273,50 @@ https://www.facebook.com/marketplace/item/987654321/" style="width: 100%; margin
           <div class="platform-badge">Craigslist</div>
         </div>
       </section>
+
+      <section class="card">
+        <h2>5) Webhook Sync (Zapier/Make Integration)</h2>
+        <p class="subtitle" style="font-size: 14px; margin-bottom: 16px;">
+          Automatically sync listings from any marketplace using webhooks, just like FB Auto Reply AI. Connect Zapier or Make to send listing data when items are created or updated.
+        </p>
+
+        <div style="background: #f8f9fa; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+          <h3 style="margin: 0 0 8px 0; font-size: 16px;">🔗 Webhook Configuration</h3>
+          <div style="margin-bottom: 8px;"><strong>Webhook URL:</strong> <code id="webhookUrl">Loading...</code></div>
+          <div style="margin-bottom: 8px;"><strong>API Key:</strong> <code id="webhookKey">Loading...</code></div>
+        </div>
+
+        <h3 style="font-size: 16px; margin-bottom: 8px;">📋 Setup Instructions</h3>
+        <ol style="font-size: 14px; line-height: 1.6; margin-bottom: 16px;">
+          <li><strong>1.</strong> Copy the Webhook URL and API Key above</li>
+          <li><strong>2.</strong> In Zapier or Make, create a new workflow</li>
+          <li><strong>3.</strong> Set up a trigger for when a listing is created/updated on your marketplace</li>
+          <li><strong>4.</strong> Add a Webhook action that POSTs to the URL above</li>
+          <li><strong>5.</strong> Use this JSON payload format:</li>
+        </ol>
+
+        <pre style="background: #f8f9fa; padding: 12px; border-radius: 6px; font-size: 13px; overflow-x: auto; margin-bottom: 16px;">{
+  "api_key": "your-api-key-here",
+  "listings": [
+    {
+      "title": "Vintage Leather Jacket",
+      "price": "$85",
+      "description": "Genuine leather jacket in excellent condition...",
+      "images": ["https://example.com/image1.jpg"],
+      "url": "https://marketplace.com/listing/123",
+      "condition": "Used - Excellent"
+    }
+  ]
+}</pre>
+
+        <p style="font-size: 13px; color: #666; margin-bottom: 16px;">
+          💡 <strong>Pro tip:</strong> Route listing data to Google Sheets first, then use Zapier to send it here for display on your site.
+        </p>
+
+        <a href="/listings" class="btn-secondary" style="display: inline-block; margin-right: 8px;">📋 View Public Listings</a>
+        <button id="testWebhookBtn" class="btn-secondary">🧪 Test Webhook</button>
+        <div id="webhookStatus" class="status"></div>
+      </section>
      </main>
 
     <script src="/script.js"></script>

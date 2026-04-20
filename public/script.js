@@ -36,6 +36,11 @@ const profileSyncStatus = document.getElementById('profileSyncStatus');
 const urlSyncForm = document.getElementById('urlSyncForm');
 const urlSyncStatus = document.getElementById('urlSyncStatus');
 
+const webhookUrlEl = document.getElementById('webhookUrl');
+const webhookKeyEl = document.getElementById('webhookKey');
+const testWebhookBtn = document.getElementById('testWebhookBtn');
+const webhookStatus = document.getElementById('webhookStatus');
+
 const onboardingCard = document.getElementById('onboardingCard');
 const quickStartForm = document.getElementById('quickStartForm');
 const quickStartStatus = document.getElementById('quickStartStatus');
@@ -700,8 +705,66 @@ function loadAutoReplyPreference() {
   arStatusText.style.color = enabled ? '#28a745' : '#666';
 }
 
+// ── Webhook Config ────────────────────────────────────
+async function loadWebhookConfig() {
+  try {
+    const res = await fetch('/api/config/webhook');
+    const data = await res.json();
+    if (webhookUrlEl) webhookUrlEl.textContent = data.webhookUrl;
+    if (webhookKeyEl) webhookKeyEl.textContent = data.apiKey;
+  } catch (err) {
+    console.error('Failed to load webhook config:', err);
+    if (webhookUrlEl) webhookUrlEl.textContent = 'Error loading URL';
+    if (webhookKeyEl) webhookKeyEl.textContent = 'Error loading key';
+  }
+}
+
+async function testWebhook() {
+  const testData = {
+    api_key: document.getElementById('webhookKey').textContent,
+    listings: [
+      {
+        title: "Test Listing - Webhook Sync",
+        price: "$9.99",
+        description: "This is a test listing created via webhook to verify the integration is working.",
+        images: [],
+        url: "",
+        condition: "New"
+      }
+    ]
+  };
+
+  setStatus(webhookStatus, 'Sending test webhook...', false);
+  testWebhookBtn.disabled = true;
+
+  try {
+    const res = await fetch('/api/webhook/listings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(testData)
+    });
+
+    const data = await res.json();
+    if (res.ok) {
+      setStatus(webhookStatus, `✅ Test successful! Synced ${data.synced} listing(s). Reload the page to see it.`, false);
+      loadListings(); // Refresh listings
+    } else {
+      setStatus(webhookStatus, `❌ Test failed: ${data.error}`, true);
+    }
+  } catch (err) {
+    setStatus(webhookStatus, `❌ Test error: ${err.message}`, true);
+  } finally {
+    testWebhookBtn.disabled = false;
+  }
+}
+
+if (testWebhookBtn) {
+  testWebhookBtn.addEventListener('click', testWebhook);
+}
+
 // ── Init ──────────────────────────────────────────────
 loadListings();
 loadStats();
 loadAutoReplyPreference();
+loadWebhookConfig();
 
