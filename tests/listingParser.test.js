@@ -15,7 +15,22 @@ process.env.ADMIN_PASSWORD = 'test-pass';
 
 const { app } = require('../src/server');
 
+function withUserAuth(req, authToken) {
+  return req.set('Authorization', `Bearer ${authToken}`);
+}
+
+async function createAuthToken() {
+  const registerRes = await request(app).post('/api/auth/register').send({
+    email: `listing-parser-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`,
+    password: 'listing-parser-pass',
+  });
+  assert.equal(registerRes.status, 200);
+  assert.ok(registerRes.body.token);
+  return registerRes.body.token;
+}
+
 test('/api/listings/parse-page fallback logic works with images and links', async () => {
+  const authToken = await createAuthToken();
   const pageText = `
 Marketplace
 Blue Sofa
@@ -28,14 +43,14 @@ Used - Fair
   const links = ['https://www.facebook.com/marketplace/item/12345/'];
   const images = ['https://scontent.xx.fbcdn.net/v/t39.30808-6/test.jpg'];
 
-  const res = await request(app)
-    .post('/api/listings/parse-page')
+  const res = await withUserAuth(request(app)
+    .post('/api/listings/parse-page'), authToken)
     .send({ pageText, links, images });
 
   assert.equal(res.status, 200);
   assert.equal(res.body.ok, true);
   
-  const productsRes = await request(app).get('/api/products');
+  const productsRes = await withUserAuth(request(app).get('/api/products'), authToken);
   assert.equal(productsRes.status, 200);
   const listings = productsRes.body.listings;
   
@@ -52,8 +67,9 @@ Used - Fair
 });
 
 test('/api/listings/parse-page accepts structured listings payload and ignores invalid entries', async () => {
-  const res = await request(app)
-    .post('/api/listings/parse-page')
+  const authToken = await createAuthToken();
+  const res = await withUserAuth(request(app)
+    .post('/api/listings/parse-page'), authToken)
     .send({
       pageText: '',
       listings: [
@@ -68,7 +84,7 @@ test('/api/listings/parse-page accepts structured listings payload and ignores i
   assert.equal(res.body.ok, true);
   assert.equal(res.body.count, 2);
 
-  const productsRes = await request(app).get('/api/products');
+  const productsRes = await withUserAuth(request(app).get('/api/products'), authToken);
   assert.equal(productsRes.status, 200);
   const listings = productsRes.body.listings;
   assert.ok(listings.find((l) => l.title === 'Desk Lamp'));

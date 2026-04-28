@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pricing — Auto-Responder</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 24px;
+    }
+
+    .pricing-card {
+      background: rgba(255, 255, 255, 0.84);
+      border-radius: 20px;
+      border: 1px solid var(--line);
+      padding: 30px;
+      box-shadow: var(--shadow);
+      position: relative;
+    }
+
+    .pricing-card.popular {
+      border: 2px solid var(--accent);
+      transform: translateY(-4px);
+    }
+
+    .pricing-badge {
+      position: absolute;
+      top: -12px;
+      left: 24px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: var(--accent-strong);
+      color: white;
+      font-size: 0.74rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .price {
+      font-size: 3rem;
+      font-weight: 800;
+      font-family: 'Space Grotesk', sans-serif;
+      margin: 10px 0 4px;
+      color: var(--accent-strong);
+    }
+
+    .period {
+      color: var(--muted);
+      margin-bottom: 22px;
+    }
+
+    .pricing-features {
+      display: grid;
+      gap: 12px;
+      margin: 22px 0;
+    }
+
+    .pricing-feature {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      color: var(--muted);
+    }
+
+    .pricing-feature strong {
+      color: var(--ink);
+    }
+
+    .pricing-action {
+      width: 100%;
+      justify-content: center;
+      margin-top: 16px;
+    }
+
+    .status-box {
+      min-height: 24px;
+      color: var(--muted);
+      margin: 8px 0 0;
+    }
+
+    .comparison-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .comparison-row {
+      display: grid;
+      grid-template-columns: 1.3fr 1fr 1fr;
+      gap: 12px;
+      padding: 14px 16px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.82);
+    }
+
+    @media (max-width: 720px) {
+      .comparison-row {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-shape shape-a"></div>
+  <div class="bg-shape shape-b"></div>
+
+  <nav class="topnav">
+    <a href="/">Home</a>
+    <a href="/tour">Tour</a>
+    <a href="/pricing" class="active">Pricing</a>
+    <a href="/app.html">Dashboard</a>
+    <a href="/login" style="margin-left: auto;">Login</a>
+    <a href="/register">Get Started</a>
+  </nav>
+
+  <main class="page">
+    <header class="hero">
+      <p class="eyebrow">PLANS</p>
+      <h1>Start free, upgrade when your listing volume grows.</h1>
+      <p class="subtitle">
+        Free accounts are designed for onboarding and evaluation. Pro unlocks unlimited listings and the hosted subscription flow.
+      </p>
+    </header>
+
+    <section class="card">
+      <div id="pricingStatus" class="status-box"></div>
+      <div class="pricing-grid">
+        <div class="pricing-card">
+          <h2>Free</h2>
+          <div class="price">$0</div>
+          <div class="period">for getting started</div>
+          <div class="pricing-features">
+            <div class="pricing-feature"><strong>5 listings included</strong> before upgrade is required</div>
+            <div class="pricing-feature"><strong>Dashboard access</strong> for uploads, CSV import, and reply testing</div>
+            <div class="pricing-feature"><strong>Admin queue</strong> for reviewing risky messages</div>
+            <div class="pricing-feature"><strong>Extension support</strong> for Marketplace syncing</div>
+          </div>
+          <a id="freePlanBtn" class="button-secondary pricing-action" href="/register">Create free account</a>
+        </div>
+
+        <div class="pricing-card popular">
+          <div class="pricing-badge">Upgrade path</div>
+          <h2>Pro</h2>
+          <div class="price">$9.99</div>
+          <div class="period">per month</div>
+          <div class="pricing-features">
+            <div class="pricing-feature"><strong>Unlimited listings</strong> for active sellers</div>
+            <div class="pricing-feature"><strong>Hosted Stripe checkout</strong> with return to your dashboard</div>
+            <div class="pricing-feature"><strong>All existing dashboard tools</strong> with no free-plan listing cap</div>
+            <div class="pricing-feature"><strong>Connector-friendly workflow</strong> for webhook-driven automation</div>
+          </div>
+          <button id="proPlanBtn" class="pricing-action">Start Pro</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <p class="eyebrow">COMPARISON</p>
+      <h2>What changes when you upgrade</h2>
+      <div class="comparison-grid">
+        <div class="comparison-row">
+          <strong>Listing capacity</strong>
+          <span>Free: up to 5</span>
+          <span>Pro: unlimited</span>
+        </div>
+        <div class="comparison-row">
+          <strong>Reply generation</strong>
+          <span>Free: included</span>
+          <span>Pro: included</span>
+        </div>
+        <div class="comparison-row">
+          <strong>Admin review queue</strong>
+          <span>Free: included</span>
+          <span>Pro: included</span>
+        </div>
+        <div class="comparison-row">
+          <strong>Checkout</strong>
+          <span>Free: no billing</span>
+          <span>Pro: hosted Stripe subscription</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const statusEl = document.getElementById('pricingStatus');
+    const freePlanBtn = document.getElementById('freePlanBtn');
+    const proPlanBtn = document.getElementById('proPlanBtn');
+
+    function getAuthToken() {
+      return localStorage.getItem('authToken') || '';
+    }
+
+    async function authFetch(url, options = {}) {
+      const headers = new Headers(options.headers || {});
+      const token = getAuthToken();
+      if (token) {
+        headers.set('Authorization', `Bearer ${token}`);
+      }
+      return window.fetch(url, { ...options, headers });
+    }
+
+    function setStatus(message, isError = false) {
+      statusEl.textContent = message;
+      statusEl.style.color = isError ? '#b3261e' : '';
+    }
+
+    async function startCheckout() {
+      proPlanBtn.disabled = true;
+      proPlanBtn.textContent = 'Opening checkout...';
+      setStatus('Starting hosted checkout...');
+
+      try {
+        const response = await authFetch('/api/subscription/create-session', { method: 'POST' });
+        const data = await response.json();
+
+        if (!response.ok) {
+          setStatus(data.error || 'Checkout could not be started.', true);
+          return;
+        }
+
+        window.location.href = data.url;
+      } catch (err) {
+        setStatus('Checkout failed: ' + err.message, true);
+      } finally {
+        proPlanBtn.disabled = false;
+        proPlanBtn.textContent = 'Start Pro';
+      }
+    }
+
+    async function initializePricingPage() {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('checkout') === 'cancelled') {
+        setStatus('Checkout was cancelled. You can keep using the free plan or try again later.', true);
+        history.replaceState({}, '', '/pricing');
+      }
+
+      const token = getAuthToken();
+      if (!token) {
+        freePlanBtn.href = '/register';
+        proPlanBtn.addEventListener('click', () => {
+          window.location.href = '/register?plan=pro';
+        });
+        return;
+      }
+
+      try {
+        const response = await authFetch('/api/auth/me');
+        const data = await response.json();
+
+        if (!response.ok) {
+          localStorage.removeItem('authToken');
+          localStorage.removeItem('userData');
+          window.location.href = '/login?plan=pro';
+          return;
+        }
+
+        localStorage.setItem('userData', JSON.stringify(data.user));
+        freePlanBtn.href = '/app.html';
+
+        if (data.user.subscription_status === 'active') {
+          proPlanBtn.textContent = 'Subscription active';
+          proPlanBtn.addEventListener('click', () => {
+            window.location.href = '/app.html';
+          });
+          setStatus('Your account already has an active subscription. Open the dashboard to continue.');
+          return;
+        }
+
+        proPlanBtn.addEventListener('click', startCheckout);
+      } catch (err) {
+        setStatus('Could not validate your session. Please log in again.', true);
+      }
+    }
+
+    initializePricingPage();
+  </script>
+</body>
+</html>

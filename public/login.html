@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login — Auto-Responder</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    .auth-shell {
+      max-width: 460px;
+      margin: 20px auto;
+    }
+
+    .auth-card {
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 20px;
+      border: 1px solid var(--line);
+      padding: 34px;
+      box-shadow: var(--shadow);
+    }
+
+    .auth-form {
+      display: grid;
+      gap: 14px;
+    }
+
+    .auth-status {
+      min-height: 22px;
+      margin-top: 12px;
+      color: var(--muted);
+    }
+
+    .plan-banner {
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(15, 157, 123, 0.2);
+      background: rgba(15, 157, 123, 0.08);
+      margin-bottom: 18px;
+      color: var(--accent-strong);
+      font-weight: 600;
+    }
+
+    .auth-links {
+      margin-top: 20px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .auth-links a {
+      color: var(--accent-strong);
+      text-decoration: none;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-shape shape-a"></div>
+  <div class="bg-shape shape-b"></div>
+
+  <nav class="topnav">
+    <a href="/">Home</a>
+    <a href="/tour">Tour</a>
+    <a href="/pricing">Pricing</a>
+    <a href="/login" class="active">Login</a>
+    <a href="/register" style="margin-left: auto;">Create Account</a>
+  </nav>
+
+  <main class="page auth-shell">
+    <section class="auth-card">
+      <p class="eyebrow">WELCOME BACK</p>
+      <h1 id="pageTitle">Sign in to your dashboard</h1>
+      <p class="subtitle" id="pageSubtitle">
+        Use the same account you created during setup to manage listings, generate replies, and upgrade when needed.
+      </p>
+
+      <div id="planBanner" class="plan-banner hidden"></div>
+
+      <form id="loginForm" class="auth-form">
+        <label class="field-label" for="email">Email</label>
+        <input type="email" id="email" placeholder="seller@example.com" required />
+
+        <label class="field-label" for="password">Password</label>
+        <input type="password" id="password" placeholder="Your password" required />
+
+        <button type="submit" id="loginBtn">Sign in</button>
+      </form>
+
+      <div id="authStatus" class="auth-status"></div>
+
+      <div class="auth-links">
+        <a href="/register">Need an account?</a>
+        <a href="/pricing">View pricing</a>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const form = document.getElementById('loginForm');
+    const loginBtn = document.getElementById('loginBtn');
+    const authStatus = document.getElementById('authStatus');
+    const planBanner = document.getElementById('planBanner');
+    const pageTitle = document.getElementById('pageTitle');
+    const pageSubtitle = document.getElementById('pageSubtitle');
+    const params = new URLSearchParams(window.location.search);
+    const selectedPlan = params.get('plan') || '';
+    const next = params.get('next') || 'app';
+
+    if (selectedPlan === 'pro') {
+      pageTitle.textContent = 'Sign in and continue to Pro checkout';
+      pageSubtitle.textContent = 'We will validate your account first, then continue into hosted checkout if billing is configured.';
+      planBanner.textContent = 'You selected Pro. After login, checkout will open automatically when Stripe billing is configured.';
+      planBanner.classList.remove('hidden');
+      loginBtn.textContent = 'Sign in and continue';
+    }
+
+    function showStatus(message, isError = false) {
+      authStatus.textContent = message;
+      authStatus.style.color = isError ? '#b3261e' : '';
+    }
+
+    async function startCheckout(token) {
+      const response = await window.fetch('/api/subscription/create-session', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Checkout could not be started.');
+      }
+      window.location.href = data.url;
+    }
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      loginBtn.disabled = true;
+      loginBtn.textContent = selectedPlan === 'pro' ? 'Signing in...' : 'Signing in...';
+      showStatus('Signing you in...');
+
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+
+      try {
+        const response = await window.fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          showStatus(data.error || 'Login failed.', true);
+          return;
+        }
+
+        localStorage.setItem('authToken', data.token);
+        localStorage.setItem('userData', JSON.stringify(data.user));
+
+        if (selectedPlan === 'pro' && data.user.subscription_status !== 'active') {
+          showStatus('Signed in. Opening checkout...');
+          try {
+            await startCheckout(data.token);
+            return;
+          } catch (err) {
+            localStorage.setItem('flashMessage', err.message + ' Your account is still available on the free plan.');
+            localStorage.setItem('flashMessageType', 'error');
+            window.location.href = '/app.html';
+            return;
+          }
+        }
+
+        showStatus('Signed in. Redirecting...');
+        window.location.href = next === 'app' ? '/app.html' : '/app.html';
+      } catch (err) {
+        showStatus('Network error. Please try again.', true);
+      } finally {
+        loginBtn.disabled = false;
+        loginBtn.textContent = selectedPlan === 'pro' ? 'Sign in and continue' : 'Sign in';
+      }
+    });
+  </script>
+</body>
+</html>

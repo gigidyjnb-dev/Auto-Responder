@@ -24,19 +24,34 @@ let listingA = null;
 let listingB = null;
 let adminCookie = null;
 let csrfToken = null;
+let authToken = null;
+
+function withUserAuth(req) {
+  return req.set('Authorization', `Bearer ${authToken}`);
+}
+
+test.before(async () => {
+  const registerRes = await request(app).post('/api/auth/register').send({
+    email: 'seller@example.com',
+    password: 'seller-pass-123',
+  });
+  assert.equal(registerRes.status, 200);
+  authToken = registerRes.body.token;
+  assert.ok(authToken);
+});
 
 test('upload listings and enforce listingId in multi-listing mode', async () => {
-  const uploadA = await request(app).post('/api/upload').attach('productFile', sampleA);
+  const uploadA = await withUserAuth(request(app).post('/api/upload')).attach('productFile', sampleA);
   assert.equal(uploadA.status, 200);
   listingA = uploadA.body?.profile?.id;
   assert.ok(listingA);
 
-  const uploadB = await request(app).post('/api/upload').attach('productFile', sampleB);
+  const uploadB = await withUserAuth(request(app).post('/api/upload')).attach('productFile', sampleB);
   assert.equal(uploadB.status, 200);
   listingB = uploadB.body?.profile?.id;
   assert.ok(listingB);
 
-  const listRes = await request(app).get('/api/products');
+  const listRes = await withUserAuth(request(app).get('/api/products'));
   assert.equal(listRes.status, 200);
   assert.equal(Array.isArray(listRes.body.listings), true);
   assert.equal(listRes.body.listings.length >= 2, true);
@@ -320,8 +335,8 @@ test('craigslist email relay requires integration key and parses email fields', 
 });
 
 test('/api/listings/bulk returns explicit error when no valid listing titles are provided', async () => {
-  const res = await request(app)
-    .post('/api/listings/bulk')
+  const res = await withUserAuth(request(app)
+    .post('/api/listings/bulk'))
     .send({
       platform: 'facebook_marketplace',
       listings: [{}, { title: '   ' }, { name: '' }],
@@ -337,8 +352,8 @@ test('/api/listings/bulk returns explicit error when no valid listing titles are
 test('/api/listings/bulk rejects oversized sync batches', async () => {
   const tooManyListings = Array.from({ length: 251 }, (_, i) => ({ title: `Bulk Item ${i}` }));
 
-  const res = await request(app)
-    .post('/api/listings/bulk')
+  const res = await withUserAuth(request(app)
+    .post('/api/listings/bulk'))
     .send({
       platform: 'facebook_marketplace',
       listings: tooManyListings,
@@ -351,8 +366,8 @@ test('/api/listings/bulk rejects oversized sync batches', async () => {
 test('/api/upload-sync/bulk rejects oversized sync batches', async () => {
   const tooManyListings = Array.from({ length: 251 }, (_, i) => ({ title: `Upload Sync Item ${i}` }));
 
-  const res = await request(app)
-    .post('/api/upload-sync/bulk')
+  const res = await withUserAuth(request(app)
+    .post('/api/upload-sync/bulk'))
     .send({
       platform: 'facebook_marketplace',
       listings: tooManyListings,
@@ -365,9 +380,9 @@ test('/api/upload-sync/bulk rejects oversized sync batches', async () => {
 test('sync endpoints echo request IDs and admin sync metrics are available', async () => {
   const requestId = 'req-observe-123';
 
-  const bulkRes = await request(app)
+  const bulkRes = await withUserAuth(request(app)
     .post('/api/upload-sync/bulk')
-    .set('x-request-id', requestId)
+    .set('x-request-id', requestId))
     .send({
       platform: 'facebook_marketplace',
       listings: [{ title: 'Observability Listing', price: '$10' }],
@@ -392,8 +407,8 @@ test('sync endpoints echo request IDs and admin sync metrics are available', asy
 });
 
 test('admin sync metrics reset requires CSRF and clears counters', async () => {
-  const seedRes = await request(app)
-    .post('/api/upload-sync/bulk')
+  const seedRes = await withUserAuth(request(app)
+    .post('/api/upload-sync/bulk'))
     .send({
       platform: 'facebook_marketplace',
       listings: [{ title: 'Reset Seed Listing' }],

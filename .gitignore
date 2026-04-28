@@ -30,3 +30,16 @@ my-gemini-project/
 # Actually include the zip - users need it!
 !public/extension/marketplace-sync-extension.zip
 
+
+# AI Tool files - keep out of project
+.aider*
+.zencoder
+.zenflow
+.aiderignore
+*.aider.tags.cache*
+my-gemini-project/
+node-v*-darwin-x64/
+node*.tar.gz
+data/*.db-wal
+data/*.db-shm
+.env.aider

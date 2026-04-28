@@ -1,47 +1,136 @@
-/* popup.js — Marketplace Auto-Responder Extension v3 (Simplified) */
+/* popup.js — Marketplace Auto-Responder Extension v3 (User Auth) */
 
 const $ = (id) => document.getElementById(id);
 
 let serverUrl = '';
+let userToken = '';
+let userData = null;
 let autoReplyEnabled = false;
 let autoSendEnabled = false;
 
 /* ── Load settings ─────────────────────────────────────── */
 chrome.storage.local.get(
-  ['serverUrl', 'autoReplyEnabled', 'autoSendEnabled', 'statListings'],
+  ['serverUrl', 'userToken', 'userData', 'autoReplyEnabled', 'autoSendEnabled'],
   (r) => {
     serverUrl = (r.serverUrl || '').replace(/\/$/, '');
+    userToken = r.userToken || '';
+    userData = r.userData || null;
     autoReplyEnabled = Boolean(r.autoReplyEnabled);
     autoSendEnabled = Boolean(r.autoSendEnabled);
-    
-    if (serverUrl) {
-      showMainSection();
-      updateStats();
+
+    if (userToken && userData) {
+      showAuthenticatedState();
+    } else {
+      showAuthSection();
     }
   }
 );
 
-function showMainSection() {
+function showAuthSection() {
+  $('authSection').style.display = 'block';
   $('setupSection').style.display = 'none';
-  $('mainSection').style.display = 'block';
-  $('autoReplyToggle').checked = autoReplyEnabled;
-  $('autoSendToggle').checked = autoSendEnabled;
-  $('arStatus').textContent = autoReplyEnabled ? 'ON' : 'OFF';
-  $('arStatus').style.color = autoReplyEnabled ? '#4caf50' : '#999';
-}
-
-function showSetupSection() {
-  $('setupSection').style.display = 'block';
   $('mainSection').style.display = 'none';
 }
 
-function updateStats() {
-  if (!serverUrl) return;
-  
-  fetch(`${serverUrl}/api/stats`).then(r => r.json()).then(d => {
-    if (d.listingsCount !== undefined) {
-      $('statListings').textContent = d.listingsCount;
+function showAuthenticatedState() {
+  $('authSection').style.display = 'none';
+
+  if (serverUrl) {
+    showMainSection();
+    updateStats();
+  } else {
+    showSetupSection();
+  }
+}
+
+// Authentication functions
+$('loginBtn').addEventListener('click', async () => {
+  const email = $('userEmail').value.trim();
+  const password = $('userPassword').value;
+
+  if (!email || !password) {
+    showStatus('authStatus', 'Please enter email and password', 'error');
+    return;
+  }
+
+  setStatus('authStatus', 'Authenticating...', 'info');
+  $('loginBtn').disabled = true;
+
+  try {
+    // Try login first
+    let response = await fetch(`${serverUrl}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+
+    let data = await response.json();
+
+    if (!response.ok) {
+      // Try register if login failed
+      response = await fetch(`${serverUrl}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+
+      data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Authentication failed');
+      }
     }
+
+    // Success
+    userToken = data.token;
+    userData = data.user;
+
+    chrome.storage.local.set({
+      userToken,
+      userData
+    });
+
+    showStatus('authStatus', `Welcome ${data.user.email}!`, 'success');
+    setTimeout(() => showAuthenticatedState(), 1000);
+
+  } catch (err) {
+    showStatus('authStatus', err.message, 'error');
+    $('loginBtn').disabled = false;
+  }
+});
+
+$('upgradeBtn').addEventListener('click', async () => {
+  if (!serverUrl || !userToken) return;
+
+  try {
+    const response = await fetch(`${serverUrl}/api/subscription/create-session`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${userToken}`
+      }
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.sessionId) {
+      chrome.tabs.create({ url: data.url });
+    } else {
+      showStatus('authStatus', data.error || 'Failed to start upgrade', 'error');
+    }
+  } catch (err) {
+    showStatus('authStatus', 'Upgrade failed: ' + err.message, 'error');
+  }
+});
+
+function updateStats() {
+  if (!serverUrl || !userToken) return;
+
+  fetch(`${serverUrl}/api/products`, {
+    headers: { 'Authorization': `Bearer ${userToken}` }
+  }).then(r => r.json()).then(d => {
+    const count = d.listings ? d.listings.length : 0;
+    $('statListings').textContent = count;
   }).catch(() => {});
 }
 
@@ -159,7 +248,10 @@ $('quickSetupBtn').addEventListener('click', async () => {
     console.log('[Setup] Uploading to:', uploadUrl);
     const uploadRes = await fetch(uploadUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${userToken}`
+      },
       body: JSON.stringify({ listings, platform: 'facebook_marketplace' })
     });
 
@@ -225,7 +317,10 @@ $('resyncBtn').addEventListener('click', async () => {
     showProgress(60);
     const res = await fetch(`${serverUrl}/api/listings/bulk`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${userToken}`
+      },
       body: JSON.stringify({ listings, platform: 'facebook_marketplace' })
     });
 

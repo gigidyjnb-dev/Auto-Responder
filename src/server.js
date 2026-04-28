@@ -63,6 +63,7 @@ function assertProductionConfig() {
 
 assertProductionConfig();
 
+const bcrypt = require('bcrypt');
 const cors = require('cors');
 const crypto = require('crypto');
 const express = require('express');
@@ -71,6 +72,7 @@ const fs = require('fs');
 const helmet = require('helmet');
 const multer = require('multer');
 const path = require('path');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY || 'sk_test_dummy');
 
 const { handleWebhookEvent, isConfigured, verifyWebhook } = require('./facebook');
 const { parseCraigslistEmail } = require('./emailParser');
@@ -81,7 +83,26 @@ const { getPlatforms } = require('./platforms');
 const { parseProductDescription } = require('./productParser');
 const { generateResponse } = require('./responseEngine');
 const { routeMessage } = require('./intentRouter');
-const { getSenderListing, registerEventIfNew, setSenderListing, saveCredentials, getCredentials, clearCredentials, markCredentialsUsed, recordSyncSuccess } = require('./db');
+const {
+  getSenderListing,
+  registerEventIfNew,
+  setSenderListing,
+  saveCredentials,
+  getCredentials,
+  clearCredentials,
+  markCredentialsUsed,
+  recordSyncSuccess,
+  createUser,
+  getUserByEmail,
+  getUserById,
+  createSession,
+  getSession,
+  deleteSession,
+  updateSubscription,
+  addUserListing,
+  getUserListings,
+  isUserSubscribed
+} = require('./db');
 const { deleteProfile, listProfiles, loadProfile, saveProfile } = require('./storage');
 const { encrypt, decrypt, getKeyConfigError } = require('./credentialManager');
 
@@ -103,8 +124,26 @@ app.get('/', (req, res) => {
 });
 
 // Other middleware after static file serving
+const configuredCorsOrigins = String(process.env.CORS_ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((value) => value.trim())
+  .filter(Boolean);
+const allowedCorsOrigins = new Set(['http://localhost:3000', 'http://localhost:3001', ...configuredCorsOrigins]);
+
+function isAllowedCorsOrigin(origin) {
+  if (!origin) return true;
+  if (allowedCorsOrigins.has(origin)) return true;
+  if (origin.startsWith('chrome-extension://')) return true;
+  return false;
+}
+
 app.use(cors({
-  origin: ['http://localhost:3000', 'chrome-extension://*', 'http://localhost:3001'],
+  origin(origin, callback) {
+    if (isAllowedCorsOrigin(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
 }));
 app.use(express.json({ limit: '10mb' }));
@@ -128,6 +167,7 @@ const ADMIN_CSRF_COOKIE = 'admin_csrf';
 const adminSessionSecret =
   process.env.ADMIN_SESSION_SECRET || process.env.INTEGRATION_API_KEY || crypto.randomBytes(32).toString('hex');
 const adminSessionTtlMs = Number(process.env.ADMIN_SESSION_TTL_HOURS || 12) * 60 * 60 * 1000;
+const FREE_LISTING_LIMIT = Number(process.env.FREE_PLAN_LISTING_LIMIT || 5);
 
 app.set('trust proxy', 1);
 app.use(
@@ -359,20 +399,101 @@ function requireAdminCsrf(req, res, next) {
   return next();
 }
 
+function getUserSessionFromRequest(req) {
+  const authHeader = req.header('authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+
+  const token = authHeader.substring(7);
+  return getSession(token);
+}
+
+function optionalUserAuth(req, _res, next) {
+  const session = getUserSessionFromRequest(req);
+  if (session) {
+    req.user = session;
+  }
+  next();
+}
+
 function requireSetupAccess(req, res, next) {
   const enabled = process.env.SETUP_REQUIRE_AUTH === '1' || process.env.SETUP_REQUIRE_AUTH === 'true';
   if (!enabled) {
     return next();
   }
 
-  if (integrationAuthOk(req) || isAdminAuthenticated(req)) {
+  if (req.user || integrationAuthOk(req) || isAdminAuthenticated(req)) {
     return next();
   }
 
   return res.status(401).json({
-    error: 'Setup endpoint requires admin session or x-integration-key.',
+    error: 'Setup endpoint requires a user session, admin session, or x-integration-key.',
     code: 'SETUP_AUTH_REQUIRED',
   });
+}
+
+function requireUserAuth(req, res, next) {
+  const session = getUserSessionFromRequest(req);
+  if (!session) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  req.user = session;
+  next();
+}
+
+function requireSubscription(req, res, next) {
+  if (!isUserSubscribed(req.user)) {
+    return res.status(403).json({
+      error: 'Active subscription required',
+      subscriptionRequired: true,
+    });
+  }
+  next();
+}
+
+function requireListingCapacity(getRequestedCount = () => 1) {
+  return (req, res, next) => {
+    if (isUserSubscribed(req.user)) {
+      return next();
+    }
+
+    const currentCount = getUserListings(req.user.id).length;
+    const requestedCount = Math.max(1, Number(getRequestedCount(req) || 1));
+
+    if (currentCount + requestedCount <= FREE_LISTING_LIMIT) {
+      return next();
+    }
+
+    return res.status(403).json({
+      error: `Free accounts can store up to ${FREE_LISTING_LIMIT} listings. Upgrade to Pro for unlimited listings.`,
+      subscriptionRequired: true,
+      freeLimit: FREE_LISTING_LIMIT,
+      currentCount,
+      requestedCount,
+    });
+  };
+}
+
+function requireSyncBatchWithinLimit(getListings = (req) => req.body?.listings) {
+  return (req, res, next) => {
+    const listings = getListings(req);
+    if (!Array.isArray(listings)) {
+      return next();
+    }
+
+    if (listings.length > MAX_SYNC_LISTINGS) {
+      return res.status(413).json({
+        error: `Too many listings in one request. Max is ${MAX_SYNC_LISTINGS}.`,
+        code: 'SYNC_BATCH_TOO_LARGE',
+        max: MAX_SYNC_LISTINGS,
+        requestId: req.requestId,
+      });
+    }
+
+    return next();
+  };
 }
 
 function getCredentialKeyErrorResponse() {
@@ -460,14 +581,15 @@ app.get('/api/runtime', (_req, res) => {
   });
 });
 
-app.get('/api/config/webhook', (req, res) => {
-  const webhookKey = process.env.INTEGRATION_API_KEY || '';
+app.get('/api/config/webhook', requireUserAuth, (req, res) => {
   const protocol = req.protocol;
   const host = req.get('host');
   const webhookUrl = `${protocol}://${host}/api/webhook/listings`;
   res.json({
     webhookUrl,
-    apiKey: webhookKey,
+    authMode: 'bearer',
+    apiKey: '',
+    apiKeyLabel: 'Use your signed-in account for dashboard tests. Shared keys are not exposed in the UI.',
   });
 });
 
@@ -476,6 +598,35 @@ app.get('/api/health', sendHealth);
 
 app.get('/listings', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'public', 'listings.html'));
+});
+
+app.get('/tour', (req, res) => {
+    res.sendFile(path.join(__dirname, '..', 'public', 'tour.html'));
+});
+
+app.get('/pricing', (req, res) => {
+    res.sendFile(path.join(__dirname, '..', 'public', 'pricing.html'));
+});
+
+app.get('/register', (req, res) => {
+    res.sendFile(path.join(__dirname, '..', 'public', 'register.html'));
+});
+
+app.get('/login', (req, res) => {
+    res.sendFile(path.join(__dirname, '..', 'public', 'login.html'));
+});
+
+app.get('/subscription/success', (_req, res) => {
+  res.redirect('/app.html?checkout=success');
+});
+
+app.get('/subscription/cancel', (_req, res) => {
+  res.redirect('/pricing?checkout=cancelled');
+});
+
+app.get('/extension.zip', (req, res) => {
+    const zipPath = path.join(__dirname, '..', 'public', 'extension', 'marketplace-sync-extension.zip');
+    res.download(zipPath, 'marketplace-sync-extension.zip');
 });
 
 app.get('/webhook/facebook', (req, res) => {
@@ -494,32 +645,40 @@ app.post('/webhook/facebook', (req, res) => {
   return handleWebhookEvent(req, res);
 });
 
-app.get('/api/products', (_req, res) => {
-  return res.json({ listings: listProfiles() });
+app.get('/api/products', requireUserAuth, (req, res) => {
+  const listings = getUserListings(req.user.id);
+  return res.json({ listings });
 });
 
-app.get('/api/product/:id', (req, res) => {
+app.get('/api/product/:id', requireUserAuth, (req, res) => {
   const profile = loadProfile(req.params.id);
   if (!profile) {
     return res.status(404).json({ error: 'Listing not found.' });
   }
+
+  // Check if user owns this listing
+  const userListings = getUserListings(req.user.id);
+  const ownsListing = userListings.some(l => l.id === req.params.id);
+  if (!ownsListing) {
+    return res.status(403).json({ error: 'Access denied.' });
+  }
+
   return res.json(profile);
 });
 
-app.delete('/api/product/:id', (req, res) => {
+app.delete('/api/product/:id', requireUserAuth, (req, res) => {
+  // Check if user owns this listing
+  const userListings = getUserListings(req.user.id);
+  const ownsListing = userListings.some(l => l.id === req.params.id);
+  if (!ownsListing) {
+    return res.status(403).json({ error: 'Access denied.' });
+  }
+
   const ok = deleteProfile(req.params.id);
   if (!ok) {
     return res.status(404).json({ error: 'Listing not found.' });
   }
   return res.json({ ok: true });
-});
-
-app.get('/api/product', (_req, res) => {
-  const profile = loadProfile();
-  if (!profile) {
-    return res.status(404).json({ error: 'No product profile uploaded yet.' });
-  }
-  return res.json(profile);
 });
 
 app.get('/api/platforms', (_req, res) => {
@@ -632,7 +791,172 @@ app.get('/api/admin/profiles', requireAdmin, (req, res) => {
   return res.json({ profiles });
 });
 
-app.post('/api/upload', upload.single('productFile'), (req, res) => {
+// ============================================
+// User Authentication & Subscription Routes
+// ============================================
+
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password required' });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    const userId = createUser(email.toLowerCase(), passwordHash);
+
+    const token = createSession(userId);
+    const user = getUserById(userId);
+
+    res.json({
+      ok: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        subscription_status: user.subscription_status
+      },
+      token
+    });
+  } catch (err) {
+    console.error('Registration error:', err);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password required' });
+    }
+
+    const user = getUserByEmail(email.toLowerCase());
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const validPassword = await bcrypt.compare(password, user.password_hash);
+    if (!validPassword) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const token = createSession(user.id);
+
+    res.json({
+      ok: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        subscription_status: user.subscription_status,
+        subscription_expires_at: user.subscription_expires_at
+      },
+      token
+    });
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ error: 'Login failed' });
+  }
+});
+
+app.post('/api/auth/logout', requireUserAuth, (req, res) => {
+  const authHeader = req.header('authorization');
+  const token = authHeader.substring(7);
+  deleteSession(token);
+  res.json({ ok: true });
+});
+
+app.get('/api/auth/me', requireUserAuth, (req, res) => {
+  res.json({
+    user: {
+      id: req.user.id,
+      email: req.user.email,
+      subscription_status: req.user.subscription_status,
+      subscription_expires_at: req.user.subscription_expires_at
+    }
+  });
+});
+
+// Subscription management
+app.post('/api/subscription/create-session', requireUserAuth, async (req, res) => {
+  if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_PRICE_ID) {
+    return res.status(503).json({
+      error: 'Stripe billing is not configured on this server yet.',
+      code: 'STRIPE_NOT_CONFIGURED',
+    });
+  }
+
+  try {
+    const session = await stripe.checkout.sessions.create({
+      customer_email: req.user.email,
+      line_items: [{
+        price: process.env.STRIPE_PRICE_ID,
+        quantity: 1,
+      }],
+      mode: 'subscription',
+      success_url: `${req.protocol}://${req.get('host')}/subscription/success`,
+      cancel_url: `${req.protocol}://${req.get('host')}/subscription/cancel`,
+      metadata: {
+        user_id: req.user.id,
+      },
+    });
+
+    res.json({ sessionId: session.id, url: session.url });
+  } catch (err) {
+    console.error('Stripe session creation error:', err);
+    res.status(500).json({ error: 'Failed to create checkout session' });
+  }
+});
+
+// Webhook for Stripe events
+app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+  } catch (err) {
+    console.log(`Webhook signature verification failed.`, err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  // Handle the event
+  switch (event.type) {
+    case 'checkout.session.completed':
+      const session = event.data.object;
+      const userId = session.metadata.user_id;
+
+      // Update user subscription
+      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days
+      updateSubscription(userId, 'active', expiresAt, session.customer);
+      break;
+
+    case 'invoice.payment_succeeded':
+      // Handle successful payment for recurring subscription
+      break;
+
+    case 'invoice.payment_failed':
+      // Handle failed payment
+      const failedInvoice = event.data.object;
+      const failedUserId = failedInvoice.customer_metadata?.user_id;
+      if (failedUserId) {
+        updateSubscription(failedUserId, 'past_due', null);
+      }
+      break;
+
+    default:
+      console.log(`Unhandled event type ${event.type}`);
+  }
+
+  res.json({ received: true });
+});
+
+app.post('/api/upload', requireUserAuth, requireListingCapacity(() => 1), upload.single('productFile'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded.' });
   }
@@ -648,6 +972,7 @@ app.post('/api/upload', upload.single('productFile'), (req, res) => {
   try {
     const profile = parseProductDescription(content, originalname);
     saveProfile(profile);
+    addUserListing(req.user.id, profile.id);
     return res.json({ ok: true, id: profile.id, profile });
   } catch (err) {
     return res.status(400).json({ error: err.message });
@@ -655,7 +980,7 @@ app.post('/api/upload', upload.single('productFile'), (req, res) => {
 });
 
 // Sync endpoint for direct JSON listing data from scrapers/extensions
-app.post('/api/upload-sync', setupLimiter, requireSetupAccess, (req, res) => {
+app.post('/api/upload-sync', requireUserAuth, requireListingCapacity(() => 1), (req, res) => {
   const requestId = req.requestId;
   const startedAtMs = Date.now();
   const platform = req.body?.platform || 'unknown';
@@ -691,9 +1016,10 @@ app.post('/api/upload-sync', setupLimiter, requireSetupAccess, (req, res) => {
   };
 
   try {
-    saveProfile(profile);
-    metricAdd('uploadSync', 'succeeded', 1);
-    metricAdd('uploadSync', 'listingsSaved', 1);
+      saveProfile(profile);
+      addUserListing(req.user.id, profile.id);
+      metricAdd('uploadSync', 'succeeded', 1);
+      metricAdd('uploadSync', 'listingsSaved', 1);
     logSync('info', 'upload-sync.saved', {
       requestId,
       platform,
@@ -713,7 +1039,7 @@ app.post('/api/upload-sync', setupLimiter, requireSetupAccess, (req, res) => {
   }
 });
 
-app.post('/api/upload-sync/bulk', setupLimiter, requireSetupAccess, (req, res) => {
+app.post('/api/upload-sync/bulk', requireUserAuth, requireSyncBatchWithinLimit(), requireListingCapacity((req) => Array.isArray(req.body?.listings) ? req.body.listings.length : 1), (req, res) => {
   const requestId = req.requestId;
   const startedAtMs = Date.now();
   const { listings, platform } = req.body;
@@ -777,6 +1103,7 @@ app.post('/api/upload-sync/bulk', setupLimiter, requireSetupAccess, (req, res) =
       };
 
       saveProfile(profile);
+      addUserListing(req.user.id, profile.id);
       results.push({ id, title: profile.title });
     } catch (err) {
       errors.push(`Listing ${idx}: ${err.message}`);
@@ -825,7 +1152,7 @@ app.post('/api/generate', async (req, res) => {
     }
 
     const response = await generateResponse({
-      listing,
+      profile: listing,
       channel,
       question,
       customerName,
@@ -855,7 +1182,7 @@ app.post('/api/respond', async (req, res) => {
     }
 
     const answer = await generateResponse({
-      listing,
+      profile: listing,
       channel,
       question,
       customerName,
@@ -1016,7 +1343,7 @@ app.post('/api/outbound', integrationLimiter, (req, res) => {
 // One-Click Setup: Save credentials & sync
 // ============================================
 
-app.post('/api/listings/bulk', setupLimiter, requireSetupAccess, (req, res) => {
+app.post('/api/listings/bulk', requireUserAuth, requireSyncBatchWithinLimit(), requireListingCapacity((req) => Array.isArray(req.body?.listings) ? req.body.listings.length : 1), (req, res) => {
   const requestId = req.requestId;
   const startedAtMs = Date.now();
   const listings = Array.isArray(req.body?.listings) ? req.body.listings : [];
@@ -1136,17 +1463,30 @@ errors: errors.length ? errors : undefined,
 // Webhook for Automation (Zapier/Make/n8n)
 // Simple endpoint to receive listings from any source
 // ============================================
-app.post('/api/webhook/listings', async (req, res) => {
+app.post('/api/webhook/listings', optionalUserAuth, async (req, res) => {
   const { listings, api_key } = req.body || {};
-
-  // Simple API key check - use INTEGRATION_API_KEY
   const validKey = process.env.INTEGRATION_API_KEY || '';
-  if (api_key && api_key !== validKey) {
-    return res.status(401).json({ error: 'Invalid API key' });
+  const providedKey = api_key || req.header('x-integration-key') || '';
+
+  if (!req.user && (!validKey || providedKey !== validKey)) {
+    return res.status(401).json({ error: 'Authentication required for webhook listing imports.' });
   }
 
   if (!Array.isArray(listings) || listings.length === 0) {
     return res.status(400).json({ error: 'No listings provided' });
+  }
+
+  if (req.user && !isUserSubscribed(req.user)) {
+    const currentCount = getUserListings(req.user.id).length;
+    if (currentCount + listings.length > FREE_LISTING_LIMIT) {
+      return res.status(403).json({
+        error: `Free accounts can store up to ${FREE_LISTING_LIMIT} listings. Upgrade to Pro for unlimited listings.`,
+        subscriptionRequired: true,
+        freeLimit: FREE_LISTING_LIMIT,
+        currentCount,
+        requestedCount: listings.length,
+      });
+    }
   }
 
   let saved = 0;
@@ -1170,6 +1510,9 @@ app.post('/api/webhook/listings', async (req, res) => {
         source: 'webhook',
       };
       saveProfile(profile);
+      if (req.user) {
+        addUserListing(req.user.id, profile.id);
+      }
       saved++;
     } catch (err) {
       errors.push(err.message);
@@ -1181,9 +1524,9 @@ app.post('/api/webhook/listings', async (req, res) => {
 
 app.get('/api/webhook/listings', async (req, res) => {
   const { api_key, title, price } = req.query;
-  const validKey = process.env.WEBHOOK_API_KEY || 'demo123';
+  const validKey = process.env.INTEGRATION_API_KEY || '';
 
-  if (api_key !== validKey) {
+  if (!validKey || api_key !== validKey) {
     return res.status(401).json({ error: 'Invalid API key' });
   }
 
@@ -1578,20 +1921,20 @@ app.post("/api/sync/facebook", setupLimiter, requireSetupAccess, async (req, res
   });
 });
 
-app.post('/api/extension/reply', setupLimiter, async (req, res) => {
+app.post('/api/extension/reply', requireUserAuth, async (req, res) => {
   const { message, listingTitle, senderName } = req.body || {};
 
   if (!message || typeof message !== 'string' || !message.trim()) {
     return res.status(400).json({ error: 'message is required' });
   }
 
-  const allListings = listProfiles();
+  const userListings = getUserListings(req.user.id);
   let bestProfile = null;
 
-  if (listingTitle && allListings.length > 0) {
+  if (listingTitle && userListings.length > 0) {
     const needle = listingTitle.toLowerCase().split(/\s+/).filter(w => w.length > 2);
     let bestScore = 0;
-    for (const row of allListings) {
+    for (const row of userListings) {
       const hay = (row.title || '').toLowerCase().split(/\s+/);
       const overlap = needle.filter(w => hay.includes(w)).length;
       const score = needle.length > 0 ? overlap / needle.length : 0;
@@ -1599,7 +1942,9 @@ app.post('/api/extension/reply', setupLimiter, async (req, res) => {
     }
   }
 
-  if (!bestProfile) bestProfile = loadProfile(null);
+  if (!bestProfile && userListings.length > 0) {
+    bestProfile = loadProfile(userListings[0].id);
+  }
 
   if (!bestProfile) {
     return res.status(404).json({
@@ -1702,7 +2047,7 @@ app.post('/api/admin/sync-metrics/reset', requireAdmin, requireAdminCsrf, (req, 
   return res.json({ ok: true, requestId, metrics: syncMetrics, rollingMetrics: getRollingMetricsSnapshot() });
 });
 
-app.post('/api/listings/parse-page', setupLimiter, requireSetupAccess, async (req, res) => {
+app.post('/api/listings/parse-page', optionalUserAuth, setupLimiter, requireSetupAccess, async (req, res) => {
   // Handle both standard JSON and Form POST (bookmarklet bypass)
   let { pageText, links, images, listings: structuredListings } = req.body || {};
   const isRedirect = req.query.redirect === 'true';
@@ -1815,6 +2160,21 @@ app.post('/api/listings/parse-page', setupLimiter, requireSetupAccess, async (re
 
   metricAdd('parsePage', 'listingsReceived', listings.length);
 
+  if (req.user && !isUserSubscribed(req.user)) {
+    const currentCount = getUserListings(req.user.id).length;
+    if (currentCount + listings.length > FREE_LISTING_LIMIT) {
+      metricAdd('parsePage', 'failed', 1);
+      return res.status(403).json({
+        error: `Free accounts can store up to ${FREE_LISTING_LIMIT} listings. Upgrade to Pro for unlimited listings.`,
+        subscriptionRequired: true,
+        freeLimit: FREE_LISTING_LIMIT,
+        currentCount,
+        requestedCount: listings.length,
+        requestId,
+      });
+    }
+  }
+
   const linkMap = Array.isArray(links) ? links : [];
   const imageMap = Array.isArray(images) ? images : [];
   let saved = 0;
@@ -1826,7 +2186,7 @@ app.post('/api/listings/parse-page', setupLimiter, requireSetupAccess, async (re
       const url = normalized.url || linkMap.find((l) => l.includes('/item/')) || '';
       const listingImages = normalized.images.length > 0 ? normalized.images : imageMap.slice(0, 3);
       
-      saveProfile({
+      const profile = {
         id: `sync_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
         title: normalized.title.substring(0, 200),
         price: normalized.price || '',
@@ -1838,7 +2198,11 @@ app.post('/api/listings/parse-page', setupLimiter, requireSetupAccess, async (re
         images: listingImages,
         syncedAt: now,
         source: hasStructuredListings ? 'bookmarklet-dom' : 'bookmarklet-ai',
-      });
+      };
+      saveProfile(profile);
+      if (req.user) {
+        addUserListing(req.user.id, profile.id);
+      }
       saved++;
     } catch (e) {
       console.error('Save error:', e.message);

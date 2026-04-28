@@ -1,4 +1,4 @@
-//ultra minimal Facebook Marketplace scraper
+//ureltra minimal Facebook Marketplace scraper
 //just finds anything with a dollar sign that's near text
 
 (function() {

@@ -1,6 +1,62 @@
 // ── State ─────────────────────────────────────────────
 let activeListingId = null;
 
+function getAuthToken() {
+  return localStorage.getItem('authToken') || '';
+}
+
+function getUserData() {
+  try {
+    return JSON.parse(localStorage.getItem('userData') || 'null');
+  } catch {
+    return null;
+  }
+}
+
+function clearAuth() {
+  localStorage.removeItem('authToken');
+  localStorage.removeItem('userData');
+}
+
+function redirectToLogin() {
+  clearAuth();
+  window.location.href = '/login?next=app';
+}
+
+async function apiFetch(url, options = {}) {
+  const headers = new Headers(options.headers || {});
+  const token = getAuthToken();
+
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  const response = await window.fetch(url, {
+    ...options,
+    headers,
+  });
+
+  if (response.status === 401 && url !== '/api/respond') {
+    redirectToLogin();
+  }
+
+  return response;
+}
+
+function showFlashMessage(message, isError = false) {
+  if (!message) return;
+  const banner = document.createElement('div');
+  banner.className = 'card';
+  banner.style.padding = '14px 18px';
+  banner.style.borderColor = isError ? 'rgba(179,38,30,0.22)' : 'rgba(15,157,123,0.22)';
+  banner.style.color = isError ? '#b3261e' : '#0c7f63';
+  banner.textContent = message;
+  const main = document.querySelector('main');
+  if (main) {
+    main.prepend(banner);
+  }
+}
+
 // ── Element refs ──────────────────────────────────────
 const listingSelect    = document.getElementById('listingSelect');
 const loadListingBtn   = document.getElementById('loadListingBtn');
@@ -80,7 +136,7 @@ function setActiveListing(id, title) {
 // ── Listings manager ──────────────────────────────────
 async function loadListings() {
   try {
-    const res = await fetch('/api/products');
+    const res = await apiFetch('/api/products');
     const data = await res.json();
     const listings = data.listings || [];
 
@@ -122,7 +178,7 @@ loadListingBtn.addEventListener('click', async () => {
   }
 
   try {
-    const res = await fetch(`/api/product/${id}`);
+    const res = await apiFetch(`/api/product/${id}`);
     const data = await res.json();
     if (!res.ok) {
       setStatus(listingStatus, data.error || 'Failed to load listing.', true);
@@ -148,7 +204,7 @@ deleteListingBtn.addEventListener('click', async () => {
   if (!confirm(`Delete listing "${label}"?`)) return;
 
   try {
-    const res = await fetch(`/api/product/${id}`, { method: 'DELETE' });
+    const res = await apiFetch(`/api/product/${id}`, { method: 'DELETE' });
     const data = await res.json();
     if (!res.ok) {
       setStatus(listingStatus, data.error || 'Delete failed.', true);
@@ -174,12 +230,12 @@ deleteAllBtn.addEventListener('click', async () => {
   setStatus(listingStatus, 'Deleting all listings...');
   
   try {
-    const res = await fetch('/api/products');
+    const res = await apiFetch('/api/products');
     const data = await res.json();
     const listings = data.listings || [];
     
     for (const listing of listings) {
-      await fetch(`/api/product/${listing.id}`, { method: 'DELETE' });
+      await apiFetch(`/api/product/${listing.id}`, { method: 'DELETE' });
     }
     
     setActiveListing(null, null);
@@ -207,7 +263,7 @@ uploadForm.addEventListener('submit', async (event) => {
   formData.append('productFile', fileInput.files[0]);
 
   try {
-    const res = await fetch('/api/upload', {
+    const res = await apiFetch('/api/upload', {
       method: 'POST',
       body: formData,
     });
@@ -244,7 +300,7 @@ manualEntryForm.addEventListener('submit', async (event) => {
   }
 
   try {
-    const res = await fetch('/api/listings/bulk', {
+    const res = await apiFetch('/api/listings/bulk', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -294,7 +350,7 @@ urlSyncForm.addEventListener('submit', async (event) => {
   setStatus(urlSyncStatus, `Fetching ${urls.length} listings...`, 'info');
 
   try {
-    const res = await fetch('/api/scrape/urls', {
+    const res = await apiFetch('/api/scrape/urls', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ urls })
@@ -370,7 +426,7 @@ pasteEntryForm.addEventListener('submit', async (event) => {
   setStatus(pasteStatus, `Adding ${listings.length} listings...`);
 
   try {
-    const res = await fetch('/api/listings/bulk', {
+    const res = await apiFetch('/api/listings/bulk', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ listings })
@@ -433,7 +489,7 @@ csvEntryForm.addEventListener('submit', async (event) => {
     setStatus(csvStatus, `Adding ${listings.length} listings...`);
 
     try {
-      const res = await fetch('/api/listings/bulk', {
+      const res = await apiFetch('/api/listings/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ listings })
@@ -469,7 +525,7 @@ profileSyncForm.addEventListener('submit', async (event) => {
   }
 
   try {
-    const res = await fetch('/api/scrape/profile', {
+    const res = await apiFetch('/api/scrape/profile', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ profileUrl })
@@ -549,7 +605,7 @@ quickStartForm.addEventListener('submit', async (event) => {
     }
 
     // Add all listings at once
-    const res = await fetch('/api/listings/bulk', {
+    const res = await apiFetch('/api/listings/bulk', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ listings })
@@ -587,7 +643,7 @@ demoForm.addEventListener('submit', async (event) => {
   demoResponse.textContent = 'Generating reply...';
 
   try {
-    const res = await fetch('/api/respond', {
+    const res = await apiFetch('/api/respond', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -629,7 +685,7 @@ respondForm.addEventListener('submit', async (event) => {
   }
 
   try {
-    const res = await fetch('/api/respond', {
+    const res = await apiFetch('/api/respond', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ customerName, question, channel, listingId: activeListingId }),
@@ -652,7 +708,7 @@ respondForm.addEventListener('submit', async (event) => {
 // ── Stats ────────────────────────────────────────────
 async function loadStats() {
   try {
-    const res = await fetch('/api/stats');
+    const res = await apiFetch('/api/stats');
     const data = await res.json();
     if (data.ok) {
       statListingsEl.textContent = data.listingsCount || 0;
@@ -708,51 +764,50 @@ function loadAutoReplyPreference() {
 // ── Webhook Config ────────────────────────────────────
 async function loadWebhookConfig() {
   try {
-    const res = await fetch('/api/config/webhook');
+    const res = await apiFetch('/api/config/webhook');
     const data = await res.json();
     if (webhookUrlEl) webhookUrlEl.textContent = data.webhookUrl;
-    if (webhookKeyEl) webhookKeyEl.textContent = data.apiKey;
+    if (webhookKeyEl) webhookKeyEl.textContent = data.apiKeyLabel || 'Authenticated dashboard import';
   } catch (err) {
     console.error('Failed to load webhook config:', err);
     if (webhookUrlEl) webhookUrlEl.textContent = 'Error loading URL';
-    if (webhookKeyEl) webhookKeyEl.textContent = 'Error loading key';
+    if (webhookKeyEl) webhookKeyEl.textContent = 'Sign in to view';
   }
 }
 
 async function testWebhook() {
   const testData = {
-    api_key: document.getElementById('webhookKey').textContent,
     listings: [
       {
-        title: "Test Listing - Webhook Sync",
-        price: "$9.99",
-        description: "This is a test listing created via webhook to verify the integration is working.",
+        title: 'Test Listing - Webhook Sync',
+        price: '$9.99',
+        description: 'This is a test listing created via webhook to verify the integration is working.',
         images: [],
-        url: "",
-        condition: "New"
-      }
-    ]
+        url: '',
+        condition: 'New',
+      },
+    ],
   };
 
   setStatus(webhookStatus, 'Sending test webhook...', false);
   testWebhookBtn.disabled = true;
 
   try {
-    const res = await fetch('/api/webhook/listings', {
+    const res = await apiFetch('/api/webhook/listings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(testData)
+      body: JSON.stringify(testData),
     });
 
     const data = await res.json();
     if (res.ok) {
-      setStatus(webhookStatus, `✅ Test successful! Synced ${data.synced} listing(s). Reload the page to see it.`, false);
-      loadListings(); // Refresh listings
+      setStatus(webhookStatus, `Test successful. Synced ${data.synced} listing(s).`, false);
+      await loadListings();
     } else {
-      setStatus(webhookStatus, `❌ Test failed: ${data.error}`, true);
+      setStatus(webhookStatus, data.error || 'Webhook test failed.', true);
     }
   } catch (err) {
-    setStatus(webhookStatus, `❌ Test error: ${err.message}`, true);
+    setStatus(webhookStatus, `Webhook test error: ${err.message}`, true);
   } finally {
     testWebhookBtn.disabled = false;
   }
@@ -762,9 +817,54 @@ if (testWebhookBtn) {
   testWebhookBtn.addEventListener('click', testWebhook);
 }
 
-// ── Init ──────────────────────────────────────────────
-loadListings();
-loadStats();
-loadAutoReplyPreference();
-loadWebhookConfig();
+async function initializeDashboard() {
+  if (!getAuthToken()) {
+    redirectToLogin();
+    return;
+  }
+
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', async (event) => {
+      event.preventDefault();
+      try {
+        await apiFetch('/api/auth/logout', { method: 'POST' });
+      } catch (_err) {
+      }
+      clearAuth();
+      window.location.href = '/';
+    });
+  }
+
+  const sessionRes = await apiFetch('/api/auth/me');
+  if (!sessionRes.ok) {
+    return;
+  }
+
+  const sessionData = await sessionRes.json();
+  if (sessionData.user) {
+    localStorage.setItem('userData', JSON.stringify(sessionData.user));
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const flashMessage = localStorage.getItem('flashMessage');
+  if (params.get('checkout') === 'success') {
+    showFlashMessage('Subscription activated. You can now add unlimited listings.');
+    history.replaceState({}, '', '/app.html');
+  } else if (flashMessage) {
+    showFlashMessage(flashMessage, localStorage.getItem('flashMessageType') === 'error');
+    localStorage.removeItem('flashMessage');
+    localStorage.removeItem('flashMessageType');
+  }
+
+  const user = getUserData();
+  if (user && user.subscription_status !== 'active') {
+    showFlashMessage('You are on the free plan with up to 5 listings. Upgrade on the pricing page for unlimited listings.');
+  }
+
+  loadAutoReplyPreference();
+  await Promise.all([loadListings(), loadStats(), loadWebhookConfig()]);
+}
+
+initializeDashboard();
 

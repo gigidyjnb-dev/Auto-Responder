@@ -17,6 +17,7 @@
     "build:ext": "node scripts/build-extension.js"
   },
   "dependencies": {
+    "bcrypt": "^6.0.0",
     "better-sqlite3": "^11.8.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -24,7 +25,8 @@
     "express-rate-limit": "^7.5.0",
     "helmet": "^8.0.0",
     "multer": "^2.0.2",
-    "openai": "^4.67.3"
+    "openai": "^4.67.3",
+    "stripe": "^22.1.0"
   },
   "devDependencies": {
     "archiver": "^7.0.1",

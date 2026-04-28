@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Create Account — Auto-Responder</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    .auth-shell {
+      max-width: 460px;
+      margin: 20px auto;
+    }
+
+    .auth-card {
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 20px;
+      border: 1px solid var(--line);
+      padding: 34px;
+      box-shadow: var(--shadow);
+    }
+
+    .auth-form {
+      display: grid;
+      gap: 14px;
+    }
+
+    .auth-status {
+      min-height: 22px;
+      margin-top: 12px;
+      color: var(--muted);
+    }
+
+    .plan-banner {
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(15, 157, 123, 0.2);
+      background: rgba(15, 157, 123, 0.08);
+      margin-bottom: 18px;
+      color: var(--accent-strong);
+      font-weight: 600;
+    }
+
+    .auth-links {
+      margin-top: 20px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .auth-links a {
+      color: var(--accent-strong);
+      text-decoration: none;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-shape shape-a"></div>
+  <div class="bg-shape shape-b"></div>
+
+  <nav class="topnav">
+    <a href="/">Home</a>
+    <a href="/tour">Tour</a>
+    <a href="/pricing">Pricing</a>
+    <a href="/register" class="active">Create Account</a>
+    <a href="/login" style="margin-left: auto;">Login</a>
+  </nav>
+
+  <main class="page auth-shell">
+    <section class="auth-card">
+      <p class="eyebrow">CREATE ACCOUNT</p>
+      <h1 id="pageTitle">Start with the free plan</h1>
+      <p class="subtitle" id="pageSubtitle">
+        Create your account, open the dashboard, and add up to 5 listings before you need to upgrade.
+      </p>
+
+      <div id="planBanner" class="plan-banner hidden"></div>
+
+      <form id="registerForm" class="auth-form">
+        <label class="field-label" for="email">Email</label>
+        <input type="email" id="email" placeholder="seller@example.com" required />
+
+        <label class="field-label" for="password">Password</label>
+        <input type="password" id="password" placeholder="At least 8 characters" minlength="8" required />
+
+        <button type="submit" id="registerBtn">Create account</button>
+      </form>
+
+      <div id="authStatus" class="auth-status"></div>
+
+      <div class="auth-links">
+        <a href="/login">Already have an account?</a>
+        <a href="/pricing">Compare plans</a>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const form = document.getElementById('registerForm');
+    const registerBtn = document.getElementById('registerBtn');
+    const authStatus = document.getElementById('authStatus');
+    const planBanner = document.getElementById('planBanner');
+    const pageTitle = document.getElementById('pageTitle');
+    const pageSubtitle = document.getElementById('pageSubtitle');
+    const params = new URLSearchParams(window.location.search);
+    const selectedPlan = params.get('plan') || 'free';
+
+    if (selectedPlan === 'pro') {
+      pageTitle.textContent = 'Create your account and continue to Pro checkout';
+      pageSubtitle.textContent = 'You will create the account first, then we will open hosted checkout for the paid plan.';
+      planBanner.textContent = 'You selected Pro. After signup, checkout will open automatically if billing is configured.';
+      planBanner.classList.remove('hidden');
+      registerBtn.textContent = 'Create account and continue';
+    }
+
+    function showStatus(message, isError = false) {
+      authStatus.textContent = message;
+      authStatus.style.color = isError ? '#b3261e' : '';
+    }
+
+    async function startCheckout(token) {
+      const response = await window.fetch('/api/subscription/create-session', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Checkout could not be started.');
+      }
+      window.location.href = data.url;
+    }
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      registerBtn.disabled = true;
+      registerBtn.textContent = selectedPlan === 'pro' ? 'Creating account...' : 'Creating account...';
+      showStatus('Creating your account...');
+
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+
+      try {
+        const response = await window.fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          showStatus(data.error || 'Registration failed.', true);
+          return;
+        }
+
+        localStorage.setItem('authToken', data.token);
+        localStorage.setItem('userData', JSON.stringify(data.user));
+
+        if (selectedPlan === 'pro') {
+          showStatus('Account created. Opening checkout...');
+          try {
+            await startCheckout(data.token);
+            return;
+          } catch (err) {
+            localStorage.setItem('flashMessage', err.message + ' Your account is ready on the free plan for now.');
+            localStorage.setItem('flashMessageType', 'error');
+            window.location.href = '/app.html';
+            return;
+          }
+        }
+
+        showStatus('Account created. Redirecting to your dashboard...');
+        window.location.href = '/app.html';
+      } catch (err) {
+        showStatus('Network error. Please try again.', true);
+      } finally {
+        registerBtn.disabled = false;
+        registerBtn.textContent = selectedPlan === 'pro' ? 'Create account and continue' : 'Create account';
+      }
+    });
+  </script>
+</body>
+</html>

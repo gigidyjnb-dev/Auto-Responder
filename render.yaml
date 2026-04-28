@@ -1,11 +1,19 @@
 services:
   - type: web
     name: marketplace-auto-responder
-    env: node
+    runtime: node
     plan: free
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /api/health
+    disk:
+      name: app-data
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
       - key: NODE_VERSION
         value: 22
+      - key: APP_DB_FILE
+        value: /var/data/app.db
+      - key: ADMIN_SESSION_SECRET
+        generateValue: true

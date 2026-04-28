@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tour — Auto-Responder</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    .tour-container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .tour-step {
+      background: white;
+      border-radius: 16px;
+      border: 1px solid #e1e5e9;
+      padding: 32px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.04);
+    }
+
+    .tour-step-number {
+      display: inline-block;
+      background: #0066ff;
+      color: white;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      text-align: center;
+      line-height: 32px;
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+
+    .tour-step h2 {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: #1a1a1a;
+    }
+
+    .tour-step p {
+      font-size: 16px;
+      line-height: 1.6;
+      color: #666;
+      margin-bottom: 16px;
+    }
+
+    .tour-action {
+      background: #0066ff;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 8px;
+      text-decoration: none;
+      display: inline-block;
+      font-weight: 600;
+      margin-right: 12px;
+      margin-bottom: 8px;
+    }
+
+    .tour-action:hover {
+      background: #0052cc;
+      color: white;
+    }
+
+    .tour-note {
+      background: #e8f4fd;
+      border: 1px solid #0066ff;
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 16px;
+    }
+
+    .tour-note h4 {
+      color: #0066ff;
+      margin-bottom: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .tour-warning {
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      color: #856404;
+    }
+
+    .tour-success {
+      background: #d4edda;
+      border: 1px solid #28a745;
+      color: #155724;
+    }
+
+    .code-snippet {
+      background: #f8f9fa;
+      border: 1px solid #e9ecef;
+      border-radius: 4px;
+      padding: 12px;
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      font-size: 14px;
+      margin: 8px 0;
+      overflow-x: auto;
+    }
+
+    .tour-nav {
+      text-align: center;
+      margin-top: 40px;
+      padding-top: 24px;
+      border-top: 1px solid #e1e5e9;
+    }
+
+    .tour-nav a {
+      color: #0066ff;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .tour-nav a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <nav class="topnav">
+    <a href="/">Home</a>
+    <a href="/app.html">Dashboard</a>
+    <a href="/tour" class="active">Tour</a>
+  </nav>
+
+  <main class="page">
+    <header class="hero">
+      <p class="eyebrow">GETTING STARTED</p>
+      <h1>How to Set Up Auto-Responder</h1>
+      <p class="subtitle">
+        Follow these steps to sync your marketplace listings and start getting automated replies.
+      </p>
+    </header>
+
+    <div class="tour-container">
+
+      <div class="tour-step">
+        <span class="tour-step-number">1</span>
+        <h2>Sign Up & Subscribe</h2>
+        <p>Create your account and choose a subscription plan that fits your needs.</p>
+
+        <div class="tour-note">
+          <h4>Why subscribe?</h4>
+          <p>Free accounts are limited to 5 listings. Pro accounts get unlimited listings, priority support, and advanced features.</p>
+        </div>
+
+        <a href="/register" class="tour-action">Create Account</a>
+        <a href="/pricing" class="tour-action">View Plans</a>
+      </div>
+
+      <div class="tour-step">
+        <span class="tour-step-number">2</span>
+        <h2>Install Browser Extension</h2>
+        <p>Download and install our Chrome extension to sync your marketplace listings automatically.</p>
+
+        <div class="tour-note tour-warning">
+          <h4>Chrome Required</h4>
+          <p>Currently only available for Google Chrome. Firefox support coming soon.</p>
+        </div>
+
+        <a href="/extension.zip" class="tour-action" download>Download Extension</a>
+        <a href="https://chrome.google.com/webstore" class="tour-action" target="_blank">Chrome Web Store</a>
+      </div>
+
+      <div class="tour-step">
+        <span class="tour-step-number">3</span>
+        <h2>Configure Extension</h2>
+        <p>Open the extension popup and enter your account details.</p>
+
+        <ol style="margin: 16px 0; padding-left: 20px;">
+          <li>Click the extension icon in your Chrome toolbar</li>
+          <li>Enter your email and password</li>
+          <li>Enter your app URL (provided after signup)</li>
+          <li>Click "One-Click Setup"</li>
+        </ol>
+
+        <div class="tour-note">
+          <h4>Your App URL</h4>
+          <p>After signing up, you'll receive your unique app URL. It looks like: <code>https://your-app-name.railway.app</code></p>
+        </div>
+      </div>
+
+      <div class="tour-step">
+        <span class="tour-step-number">4</span>
+        <h2>Sync Your Listings</h2>
+        <p>Go to your Facebook Marketplace listings page and let the extension sync everything.</p>
+
+        <ol style="margin: 16px 0; padding-left: 20px;">
+          <li>Open <a href="https://www.facebook.com/marketplace/you/listings" target="_blank">Facebook Marketplace → Your Listings</a></li>
+          <li>Scroll down to load ALL your listings</li>
+          <li>Click the extension icon</li>
+          <li>Click "One-Click Setup" or "Re-Sync Listings"</li>
+        </ol>
+
+        <div class="tour-note tour-success">
+          <h4>What happens next?</h4>
+          <p>The extension automatically extracts all your listings, uploads them to your account, and turns on auto-reply mode.</p>
+        </div>
+      </div>
+
+      <div class="tour-step">
+        <span class="tour-step-number">5</span>
+        <h2>Customize Responses (Optional)</h2>
+        <p>Fine-tune how the AI responds to different types of buyer questions.</p>
+
+        <p>The AI is pre-trained to handle common marketplace scenarios:</p>
+        <ul style="margin: 16px 0; padding-left: 20px;">
+          <li>Price negotiations</li>
+          <li>Availability questions</li>
+          <li>Shipping inquiries</li>
+          <li>Condition descriptions</li>
+          <li>Pickup arrangements</li>
+        </ul>
+
+        <a href="/app.html" class="tour-action">Customize Settings</a>
+      </div>
+
+      <div class="tour-step">
+        <span class="tour-step-number">6</span>
+        <h2>Monitor & Manage</h2>
+        <p>Keep an eye on your automated responses and manage your listings.</p>
+
+        <div class="tour-note">
+          <h4>Dashboard Features</h4>
+          <ul style="margin: 8px 0; padding-left: 20px;">
+            <li>View all synced listings</li>
+            <li>Monitor response statistics</li>
+            <li>Review pending replies (if auto-send is off)</li>
+            <li>Update listing details</li>
+            <li>Manage subscription</li>
+          </ul>
+        </div>
+
+        <a href="/app.html" class="tour-action">Open Dashboard</a>
+        <a href="/listings" class="tour-action">View Listings</a>
+      </div>
+
+      <div class="tour-step">
+        <span class="tour-step-number">7</span>
+        <h2>Go Live!</h2>
+        <p>Keep Facebook Marketplace inbox open and let the automation handle buyer messages.</p>
+
+        <div class="tour-note tour-success">
+          <h4>How it works</h4>
+          <p>The extension monitors your Facebook inbox for new messages. When a buyer asks about one of your synced listings, the AI generates a personalized response using your listing details.</p>
+        </div>
+
+        <div class="tour-note">
+          <h4>Response Examples</h4>
+          <div class="code-snippet">
+Buyer: "Is this still available?"
+
+AI: "Yes, this Sony WH-1000XM5 Headphones is still available! It's in excellent condition with original packaging. The listed price is $180. Would you like to arrange pickup?"
+
+Buyer: "Can you do $150?"
+
+AI: "The headphones are priced at $180 for the excellent condition. I'm open to reasonable offers - what's your best offer?"
+          </div>
+        </div>
+      </div>
+
+      <div class="tour-nav">
+        <p>Need help? <a href="/support">Contact Support</a> | <a href="/docs">Full Documentation</a></p>
+        <p><a href="/app.html">Skip tour and go to dashboard</a></p>
+      </div>
+
+    </div>
+  </main>
+</body>
+</html>

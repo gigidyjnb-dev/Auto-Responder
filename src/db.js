@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
@@ -86,6 +87,39 @@ CREATE TABLE IF NOT EXISTS processed_events (
   event_key TEXT PRIMARY KEY,
   created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  subscription_status TEXT DEFAULT 'free',
+  subscription_expires_at TEXT,
+  stripe_customer_id TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS user_sessions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  session_token TEXT UNIQUE NOT NULL,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS user_listings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  listing_id TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  UNIQUE(user_id, listing_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(session_token);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_listings_user_id ON user_listings(user_id);
 `);
 
 // Migrate: add buyer intent columns if they don't exist yet
@@ -200,6 +234,102 @@ function recordSyncSuccess(platform) {
     .run(new Date().toISOString(), platform);
 }
 
+// User authentication functions
+function createUser(email, passwordHash) {
+  const now = new Date().toISOString();
+  try {
+    const result = db.prepare(`
+      INSERT INTO users (email, password_hash, created_at, updated_at)
+      VALUES (?, ?, ?, ?)
+    `).run(email, passwordHash, now, now);
+    return result.lastInsertRowid;
+  } catch (err) {
+    if (err.message.includes('UNIQUE constraint failed')) {
+      throw new Error('Email already registered');
+    }
+    throw err;
+  }
+}
+
+function getUserByEmail(email) {
+  return db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+}
+
+function getUserById(id) {
+  return db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+}
+
+function createSession(userId) {
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days
+  const now = new Date().toISOString();
+
+  db.prepare(`
+    INSERT INTO user_sessions (user_id, session_token, expires_at, created_at)
+    VALUES (?, ?, ?, ?)
+  `).run(userId, token, expiresAt, now);
+
+  return token;
+}
+
+function getSession(token) {
+  const row = db.prepare(`
+    SELECT s.*, u.email, u.subscription_status, u.subscription_expires_at
+    FROM user_sessions s
+    JOIN users u ON s.user_id = u.id
+    WHERE s.session_token = ? AND s.expires_at > ?
+  `).get(token, new Date().toISOString());
+
+  return row || null;
+}
+
+function deleteSession(token) {
+  db.prepare('DELETE FROM user_sessions WHERE session_token = ?').run(token);
+}
+
+function updateSubscription(userId, status, expiresAt, stripeCustomerId = null) {
+  const now = new Date().toISOString();
+  db.prepare(`
+    UPDATE users
+    SET subscription_status = ?, subscription_expires_at = ?, stripe_customer_id = ?, updated_at = ?
+    WHERE id = ?
+  `).run(status, expiresAt, stripeCustomerId, now, userId);
+}
+
+function addUserListing(userId, listingId) {
+  const now = new Date().toISOString();
+  try {
+    db.prepare(`
+      INSERT INTO user_listings (user_id, listing_id, created_at)
+      VALUES (?, ?, ?)
+    `).run(userId, listingId, now);
+  } catch (err) {
+    // Ignore duplicate entries
+  }
+}
+
+function getUserListings(userId) {
+  return db.prepare(`
+    SELECT l.* FROM listings l
+    JOIN user_listings ul ON l.id = ul.listing_id
+    WHERE ul.user_id = ?
+    ORDER BY l.uploaded_at DESC
+  `).all(userId);
+}
+
+function isUserSubscribed(user) {
+  if (!user) return false;
+
+  if (user.subscription_status === 'active') {
+    if (user.subscription_expires_at) {
+      return new Date(user.subscription_expires_at) > new Date();
+    }
+    return true;
+  }
+
+  return false;
+}
+
 module.exports = {
   db,
   safeParseJson,
@@ -212,4 +342,15 @@ module.exports = {
   clearCredentials,
   markCredentialsUsed,
   recordSyncSuccess,
+  // User functions
+  createUser,
+  getUserByEmail,
+  getUserById,
+  createSession,
+  getSession,
+  deleteSession,
+  updateSubscription,
+  addUserListing,
+  getUserListings,
+  isUserSubscribed,
 };

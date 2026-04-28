@@ -30,15 +30,23 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   if (request.action === 'getReply') {
-    const { serverUrl, message, listingTitle, senderName } = request;
-    fetch(`${serverUrl}/api/extension/reply`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, listingTitle, senderName }),
-    })
-      .then((r) => r.json())
-      .then((data) => sendResponse({ ok: true, data }))
-      .catch((err) => sendResponse({ ok: false, error: err.message }));
+    chrome.storage.local.get(['userToken'], (storage) => {
+      const { serverUrl, message, listingTitle, senderName } = request;
+      const headers = { 'Content-Type': 'application/json' };
+
+      if (storage.userToken) {
+        headers['Authorization'] = `Bearer ${storage.userToken}`;
+      }
+
+      fetch(`${serverUrl}/api/extension/reply`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ message, listingTitle, senderName }),
+      })
+        .then((r) => r.json())
+        .then((data) => sendResponse({ ok: true, data }))
+        .catch((err) => sendResponse({ ok: false, error: err.message }));
+    });
     return true;
   }
 

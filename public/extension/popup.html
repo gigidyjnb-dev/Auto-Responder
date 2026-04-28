@@ -100,27 +100,45 @@
     <p>One-click setup for Facebook Marketplace</p>
   </div>
 
+  <!-- USER AUTHENTICATION -->
+  <div id="authSection">
+    <div class="section">
+      <div class="section-title">Login Required</div>
+      <input type="email" id="userEmail" placeholder="your@email.com">
+      <input type="password" id="userPassword" placeholder="Password">
+      <button class="btn btn-primary" id="loginBtn">Login / Register</button>
+      <div id="authStatus" class="status" style="display:none"></div>
+    </div>
+
+    <div class="setup-box" id="subscriptionPrompt" style="display:none;">
+      <h2>💎 Upgrade Required</h2>
+      <p>Get unlimited listings and premium features.</p>
+      <button class="btn btn-primary" id="upgradeBtn">🚀 Upgrade to Pro</button>
+    </div>
+  </div>
+
   <!-- FIRST TIME SETUP -->
-  <div id="setupSection">
+  <div id="setupSection" style="display:none;">
     <div class="setup-box">
       <h2>🚀 Quick Setup</h2>
       <p>Enter your app URL once, then click the button below to do everything automatically.</p>
-      
+
       <input type="text" id="serverUrl" placeholder="Your app URL (e.g., https://your-app.up.railway.app)">
-      
+
       <button class="btn btn-primary" id="quickSetupBtn">⚡ One-Click Setup</button>
-      
+
       <div class="progress-bar" id="progressBar" style="display:none">
         <div class="progress-fill" id="progressFill"></div>
       </div>
       <div id="setupStatus"></div>
     </div>
-    
+
     <p class="hint">
       <strong>What this does:</strong><br>
       1. Saves your URL<br>
       2. Syncs all your listings<br>
-      3. Turns on auto-reply
+      3. Turns on auto-reply<br><br>
+      <a href="https://auto-responder.railway.app/tour" target="_blank" style="color: #0066ff;">📖 View Setup Guide</a>
     </p>
   </div>
 

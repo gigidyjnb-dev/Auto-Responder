@@ -120,8 +120,19 @@ test('inbound API response includes buyerIntent field', async () => {
 
   const { app } = require('../src/server');
 
+  const registerRes = await request(app).post('/api/auth/register').send({
+    email: `intent-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`,
+    password: 'intent-pass-123',
+  });
+  assert.equal(registerRes.status, 200);
+  const authToken = registerRes.body.token;
+  assert.ok(authToken);
+
   const sampleA = path.join(__dirname, '..', 'samples', 'electronics-headphones.txt');
-  const uploadRes = await request(app).post('/api/upload').attach('productFile', sampleA);
+  const uploadRes = await request(app)
+    .post('/api/upload')
+    .set('Authorization', `Bearer ${authToken}`)
+    .attach('productFile', sampleA);
   assert.equal(uploadRes.status, 200);
   const listingId = uploadRes.body.profile.id;
 
@@ -226,9 +237,20 @@ test('inbound API response includes buyerIntent field', async () => {
   // Fresh require since APP_DB_FILE changed
   const { app } = require('../src/server');
 
+  const registerRes = await request(app).post('/api/auth/register').send({
+    email: `intent-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`,
+    password: 'intent-pass-123',
+  });
+  assert.equal(registerRes.status, 200);
+  const authToken = registerRes.body.token;
+  assert.ok(authToken);
+
   // Upload a listing first
   const sampleA = path.join(__dirname, '..', 'samples', 'electronics-headphones.txt');
-  const uploadRes = await request(app).post('/api/upload').attach('productFile', sampleA);
+  const uploadRes = await request(app)
+    .post('/api/upload')
+    .set('Authorization', `Bearer ${authToken}`)
+    .attach('productFile', sampleA);
   assert.equal(uploadRes.status, 200);
   const listingId = uploadRes.body.profile.id;
 
